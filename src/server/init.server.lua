@@ -10,15 +10,13 @@ local BOUNCINESS = 1.0
 local DAMAGE = 20
 local FIRE_COOLDOWN = 0.5
 
--- === 音源ID (Roblox公式フリー素材) ===
+-- === 音源ID ===
 local SOUND_SHOOT = "rbxassetid://2691586" -- ポンッという軽い発射音
 local SOUND_BOUNCE = "rbxassetid://9117581790" -- ビヨン（ゴムの跳ねる音）
 local SOUND_HIT = "rbxassetid://123589129673882" -- ヒット音
 
--- プレイヤーごとのクールダウン管理
 local cooldowns = {}
 
--- RemoteEventの準備
 local remoteEventName = "FireBullet"
 local fireEvent = ReplicatedStorage:FindFirstChild(remoteEventName)
 if not fireEvent then
@@ -27,7 +25,14 @@ if not fireEvent then
 	fireEvent.Parent = ReplicatedStorage
 end
 
--- 音を再生する便利関数
+local effectEventName = "PlayEffect"
+local effectEvent = ReplicatedStorage:FindFirstChild(effectEventName)
+if not effectEvent then
+	effectEvent = Instance.new("RemoteEvent")
+	effectEvent.Name = effectEventName
+	effectEvent.Parent = ReplicatedStorage
+end
+
 local function playSound(soundId, parentPart, volume, pitch)
 	local sound = Instance.new("Sound")
 	sound.SoundId = soundId
@@ -35,7 +40,7 @@ local function playSound(soundId, parentPart, volume, pitch)
 	sound.PlaybackSpeed = pitch or 1
 	sound.Parent = parentPart
 	sound:Play()
-	Debris:AddItem(sound, 2) -- 鳴り終わったら消す
+	Debris:AddItem(sound, 2)
 end
 
 fireEvent.OnServerEvent:Connect(function(player, mousePosition)
@@ -44,14 +49,12 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 		return
 	end
 
-	-- 1. クールダウン判定
 	local now = tick()
 	if cooldowns[player.UserId] and (now - cooldowns[player.UserId] < FIRE_COOLDOWN) then
 		return
 	end
 	cooldowns[player.UserId] = now
 
-	-- 2. 発射位置の決定
 	local tool = character:FindFirstChildOfClass("Tool")
 	local muzzle = nil
 	if tool and tool:FindFirstChild("Handle") then
@@ -64,9 +67,9 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	if muzzle then
 		spawnPos = muzzle.WorldPosition
 		spawnDirection = (mousePosition - spawnPos).Unit
-
-		-- ★発射音を銃の位置で鳴らす
 		playSound(SOUND_SHOOT, tool.Handle, 0.5, 1.2)
+		-- ★マズルフラッシュ命令だけを送る（Impactは削除）
+		effectEvent:FireAllClients("Muzzle", tool.Handle)
 	else
 		local rootPart = character:FindFirstChild("HumanoidRootPart")
 		if not rootPart then
@@ -77,7 +80,6 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 		playSound(SOUND_SHOOT, rootPart, 0.5, 1.2)
 	end
 
-	-- 3. 弾の生成
 	local bullet = Instance.new("Part")
 	bullet.Name = "RubberBullet"
 	bullet.Shape = Enum.PartType.Ball
@@ -90,7 +92,6 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	local physicalProperties = PhysicalProperties.new(0.1, 0.1, BOUNCINESS, 1.0, 1.0)
 	bullet.CustomPhysicalProperties = physicalProperties
 
-	-- トレイル
 	local trail = Instance.new("Trail")
 	local att0 = Instance.new("Attachment", bullet)
 	att0.Position = Vector3.new(0, 0.5, 0)
@@ -104,33 +105,41 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 
 	bullet.Parent = workspace
 	bullet.Velocity = spawnDirection * BULLET_SPEED
-
 	bullet:SetNetworkOwner(player)
 
-	-- 4. 衝突・ダメージ判定
-	local hasHit = false
+	-- 衝突処理
+	local hasHitHumanoid = false
+	local lastBounceTime = 0
 
 	bullet.Touched:Connect(function(hit)
-		if hasHit then
+		-- 自爆防止
+		if hit:IsDescendantOf(character) then
+			return
+		end
+		if hasHitHumanoid then
 			return
 		end
 
-		-- 人間に当たったか？
+		-- スパム防止
+		if bullet.AssemblyLinearVelocity.Magnitude < 10 then
+			return
+		end
+
 		local humanoid = hit.Parent:FindFirstChild("Humanoid")
 		if humanoid then
-			-- ヒット処理
+			hasHitHumanoid = true
 			humanoid:TakeDamage(DAMAGE)
-			hasHit = true
-			playSound(SOUND_HIT, hit, 1.0, 1.0) -- 相手の体で音を鳴らす
+			playSound(SOUND_HIT, hit, 1.0, 1.0)
+			-- Impact命令削除
 			bullet:Destroy()
 			print(player.Name .. " hit " .. hit.Parent.Name)
 		else
-			-- ★壁や床に当たった時：一定速度以上なら「跳ねる音」を鳴らす
-			-- (スポーン直後の接触などで音が鳴りすぎないように速度チェック)
-			if bullet.AssemblyLinearVelocity.Magnitude > 10 then
-				-- 音が重なりすぎないよう、ピッチをランダムにして変化をつける
+			local t = tick()
+			if t - lastBounceTime > 0.1 then
+				lastBounceTime = t
 				local randomPitch = 0.8 + math.random() * 0.4
 				playSound(SOUND_BOUNCE, bullet, 0.3, randomPitch)
+				-- Impact命令削除
 			end
 		end
 	end)
@@ -138,4 +147,4 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	Debris:AddItem(bullet, BULLET_LIFE)
 end)
 
-print("Bouncy Battle: Sound FX Loaded")
+print("Server: Optimized Logic (No Impact FX)")
