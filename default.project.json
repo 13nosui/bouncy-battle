@@ -3,21 +3,28 @@
   "tree": {
     "$className": "DataModel",
     "ReplicatedStorage": {
-      "Shared": { "$path": "src/shared" },
-      "_ignore": [ "src/shared/Unused" ]
+      "Shared": {
+        "$path": "src/shared"
+      }
     },
     "ServerScriptService": {
-      "Server": { "$path": "src/server" }
+      "Server": {
+        "$path": "src/server"
+      }
     },
     "StarterPlayer": {
       "StarterPlayerScripts": {
-        "Client": { "$path": "src/client" }
+        "Client": {
+          "$path": "src/client"
+        }
       }
     },
     "Lighting": {
       "$className": "Lighting",
-      "Outlines": false,
-      "GlobalShadows": true
+      "$properties": {
+        "Outlines": false,
+        "GlobalShadows": true
+      }
     }
   }
 }
