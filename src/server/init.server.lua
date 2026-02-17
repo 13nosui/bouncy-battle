@@ -11,8 +11,8 @@ local DAMAGE = 20
 local FIRE_COOLDOWN = 0.5
 
 -- === 音源ID ===
-local SOUND_SHOOT = "rbxassetid://2691586" -- ポンッという軽い発射音
-local SOUND_BOUNCE = "rbxassetid://9117581790" -- ビヨン（ゴムの跳ねる音）
+local SOUND_SHOOT = "rbxassetid://124815381429574" -- ポンッという軽い発射音
+local SOUND_BOUNCE = "rbxassetid://131916027000817" -- ビヨン（ゴムの跳ねる音）
 local SOUND_HIT = "rbxassetid://123589129673882" -- ヒット音
 
 local cooldowns = {}
@@ -68,7 +68,6 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 		spawnPos = muzzle.WorldPosition
 		spawnDirection = (mousePosition - spawnPos).Unit
 		playSound(SOUND_SHOOT, tool.Handle, 0.5, 1.2)
-		-- ★マズルフラッシュ命令だけを送る（Impactは削除）
 		effectEvent:FireAllClients("Muzzle", tool.Handle)
 	else
 		local rootPart = character:FindFirstChild("HumanoidRootPart")
@@ -107,39 +106,56 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	bullet.Velocity = spawnDirection * BULLET_SPEED
 	bullet:SetNetworkOwner(player)
 
-	-- 衝突処理
+	-- ★ここから修正：自爆判定ロジック
 	local hasHitHumanoid = false
 	local lastBounceTime = 0
 
+	-- 「一度でも何かに当たったか？」を管理するフラグ
+	local canHitOwner = false
+
 	bullet.Touched:Connect(function(hit)
-		-- 自爆防止
-		if hit:IsDescendantOf(character) then
-			return
-		end
 		if hasHitHumanoid then
 			return
 		end
 
-		-- スパム防止
+		-- 速度が遅すぎる（転がらず止まっている）場合は判定しない
 		if bullet.AssemblyLinearVelocity.Magnitude < 10 then
 			return
 		end
 
+		-- 誰に当たったかチェック
+		local isOwner = hit:IsDescendantOf(character)
+
+		-- ★自爆制御
+		if isOwner then
+			-- まだ壁などに当たっていないなら、発射直後なので無視する
+			if not canHitOwner then
+				return
+			end
+			-- 壁に当たった後なら、自分でもダメージ処理へ進む
+		else
+			-- 自分以外（壁、床、敵）に当たった！
+			-- これ以降、跳ね返って自分に当たったらダメージを受けるようにする
+			canHitOwner = true
+		end
+
 		local humanoid = hit.Parent:FindFirstChild("Humanoid")
 		if humanoid then
+			-- 人間（自分含む）に当たった時の処理
 			hasHitHumanoid = true
 			humanoid:TakeDamage(DAMAGE)
 			playSound(SOUND_HIT, hit, 1.0, 1.0)
-			-- Impact命令削除
+
+			-- 弾を消す
 			bullet:Destroy()
 			print(player.Name .. " hit " .. hit.Parent.Name)
 		else
+			-- 壁・床に当たった時の処理
 			local t = tick()
 			if t - lastBounceTime > 0.1 then
 				lastBounceTime = t
 				local randomPitch = 0.8 + math.random() * 0.4
 				playSound(SOUND_BOUNCE, bullet, 0.3, randomPitch)
-				-- Impact命令削除
 			end
 		end
 	end)
@@ -147,4 +163,4 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	Debris:AddItem(bullet, BULLET_LIFE)
 end)
 
-print("Server: Optimized Logic (No Impact FX)")
+print("Server: Self-Damage Enabled (After Bounce)")
