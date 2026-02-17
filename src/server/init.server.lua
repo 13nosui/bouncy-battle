@@ -10,7 +10,12 @@ local BOUNCINESS = 1.0
 local DAMAGE = 20
 local FIRE_COOLDOWN = 0.5
 
--- プレイヤーごとのクールダウン管理用テーブル
+-- === 音源ID (Roblox公式フリー素材) ===
+local SOUND_SHOOT = "rbxassetid://2691586" -- ポンッという軽い発射音
+local SOUND_BOUNCE = "rbxassetid://9117581790" -- ビヨン（ゴムの跳ねる音）
+local SOUND_HIT = "rbxassetid://123589129673882" -- ヒット音
+
+-- プレイヤーごとのクールダウン管理
 local cooldowns = {}
 
 -- RemoteEventの準備
@@ -20,6 +25,17 @@ if not fireEvent then
 	fireEvent = Instance.new("RemoteEvent")
 	fireEvent.Name = remoteEventName
 	fireEvent.Parent = ReplicatedStorage
+end
+
+-- 音を再生する便利関数
+local function playSound(soundId, parentPart, volume, pitch)
+	local sound = Instance.new("Sound")
+	sound.SoundId = soundId
+	sound.Volume = volume or 1
+	sound.PlaybackSpeed = pitch or 1
+	sound.Parent = parentPart
+	sound:Play()
+	Debris:AddItem(sound, 2) -- 鳴り終わったら消す
 end
 
 fireEvent.OnServerEvent:Connect(function(player, mousePosition)
@@ -35,11 +51,9 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	end
 	cooldowns[player.UserId] = now
 
-	-- 2. 発射位置の決定（銃を持っているかチェック）
+	-- 2. 発射位置の決定
 	local tool = character:FindFirstChildOfClass("Tool")
 	local muzzle = nil
-
-	-- ツール > Handle > Muzzle があるか探す
 	if tool and tool:FindFirstChild("Handle") then
 		muzzle = tool.Handle:FindFirstChild("Muzzle")
 	end
@@ -48,18 +62,19 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	local spawnDirection
 
 	if muzzle then
-		-- A. 銃を持っている場合: 銃口(Muzzle)の位置を使う
 		spawnPos = muzzle.WorldPosition
 		spawnDirection = (mousePosition - spawnPos).Unit
+
+		-- ★発射音を銃の位置で鳴らす
+		playSound(SOUND_SHOOT, tool.Handle, 0.5, 1.2)
 	else
-		-- B. 銃を持っていない場合（予備）: 体から出す
 		local rootPart = character:FindFirstChild("HumanoidRootPart")
 		if not rootPart then
 			return
 		end
-
 		spawnDirection = (mousePosition - rootPart.Position).Unit
 		spawnPos = rootPart.Position + spawnDirection * 5
+		playSound(SOUND_SHOOT, rootPart, 0.5, 1.2)
 	end
 
 	-- 3. 弾の生成
@@ -69,14 +84,13 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	bullet.Size = Vector3.new(BULLET_SIZE, BULLET_SIZE, BULLET_SIZE)
 	bullet.Color = Color3.fromHSV(math.random(), 1, 1)
 	bullet.Material = Enum.Material.Neon
-	bullet.Position = spawnPos -- ここでエラーが出ていましたが、修正後は必ず値が入ります
+	bullet.Position = spawnPos
 	bullet.CanCollide = true
 
-	-- 物理プロパティ
 	local physicalProperties = PhysicalProperties.new(0.1, 0.1, BOUNCINESS, 1.0, 1.0)
 	bullet.CustomPhysicalProperties = physicalProperties
 
-	-- 4. トレイル（軌跡）
+	-- トレイル
 	local trail = Instance.new("Trail")
 	local att0 = Instance.new("Attachment", bullet)
 	att0.Position = Vector3.new(0, 0.5, 0)
@@ -91,10 +105,9 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	bullet.Parent = workspace
 	bullet.Velocity = spawnDirection * BULLET_SPEED
 
-	-- ネットワークオーナーシップ（ラグ対策）
 	bullet:SetNetworkOwner(player)
 
-	-- 5. ダメージ判定
+	-- 4. 衝突・ダメージ判定
 	local hasHit = false
 
 	bullet.Touched:Connect(function(hit)
@@ -102,17 +115,27 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 			return
 		end
 
+		-- 人間に当たったか？
 		local humanoid = hit.Parent:FindFirstChild("Humanoid")
 		if humanoid then
+			-- ヒット処理
 			humanoid:TakeDamage(DAMAGE)
 			hasHit = true
+			playSound(SOUND_HIT, hit, 1.0, 1.0) -- 相手の体で音を鳴らす
 			bullet:Destroy()
 			print(player.Name .. " hit " .. hit.Parent.Name)
+		else
+			-- ★壁や床に当たった時：一定速度以上なら「跳ねる音」を鳴らす
+			-- (スポーン直後の接触などで音が鳴りすぎないように速度チェック)
+			if bullet.AssemblyLinearVelocity.Magnitude > 10 then
+				-- 音が重なりすぎないよう、ピッチをランダムにして変化をつける
+				local randomPitch = 0.8 + math.random() * 0.4
+				playSound(SOUND_BOUNCE, bullet, 0.3, randomPitch)
+			end
 		end
 	end)
 
-	-- 時間経過で削除
 	Debris:AddItem(bullet, BULLET_LIFE)
 end)
 
-print("Bouncy Battle: Server Logic Fixed & Loaded")
+print("Bouncy Battle: Sound FX Loaded")
