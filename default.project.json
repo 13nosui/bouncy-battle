@@ -1,0 +1,23 @@
+{
+  "name": "BouncyBattle",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/shared" },
+      "_ignore": [ "src/shared/Unused" ]
+    },
+    "ServerScriptService": {
+      "Server": { "$path": "src/server" }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "Client": { "$path": "src/client" }
+      }
+    },
+    "Lighting": {
+      "$className": "Lighting",
+      "Outlines": false,
+      "GlobalShadows": true
+    }
+  }
+}

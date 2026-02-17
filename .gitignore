@@ -1,0 +1,23 @@
+# Roblox
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+
+# Rojo
+.rojo
+.rbxmx
+.rbxmx.lock
+
+# macOS
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
+# Node (if used for tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
