@@ -9,29 +9,33 @@ local BULLET_LIFE = 15
 local BOUNCINESS = 1.0
 local DAMAGE = 20
 local FIRE_COOLDOWN = 0.5
+local MAX_AMMO = 10 -- ★最大弾数
+local RELOAD_TIME = 2.0 -- ★リロード時間
 
 -- === 音源ID ===
-local SOUND_SHOOT = "rbxassetid://124815381429574" -- ポンッという軽い発射音
-local SOUND_BOUNCE = "rbxassetid://131916027000817" -- ビヨン（ゴムの跳ねる音）
+local SOUND_SHOOT = "rbxassetid://2691586" -- ポンッという軽い発射音
+local SOUND_BOUNCE = "rbxassetid://9117581790" -- ビヨン（ゴムの跳ねる音）
 local SOUND_HIT = "rbxassetid://123589129673882" -- ヒット音
+local SOUND_EMPTY = "rbxassetid://9117048518" -- ★カチッ（弾切れ）
+local SOUND_RELOAD = "rbxassetid://506273075" -- ★ジャキッ（リロード音）
 
 local cooldowns = {}
+local reloadingStatus = {} -- リロード中フラグ
 
-local remoteEventName = "FireBullet"
-local fireEvent = ReplicatedStorage:FindFirstChild(remoteEventName)
-if not fireEvent then
-	fireEvent = Instance.new("RemoteEvent")
-	fireEvent.Name = remoteEventName
-	fireEvent.Parent = ReplicatedStorage
+-- RemoteEventsの準備
+local function getRemote(name)
+	local r = ReplicatedStorage:FindFirstChild(name)
+	if not r then
+		r = Instance.new("RemoteEvent")
+		r.Name = name
+		r.Parent = ReplicatedStorage
+	end
+	return r
 end
 
-local effectEventName = "PlayEffect"
-local effectEvent = ReplicatedStorage:FindFirstChild(effectEventName)
-if not effectEvent then
-	effectEvent = Instance.new("RemoteEvent")
-	effectEvent.Name = effectEventName
-	effectEvent.Parent = ReplicatedStorage
-end
+local fireEvent = getRemote("FireBullet")
+local effectEvent = getRemote("PlayEffect")
+local reloadEvent = getRemote("Reload") -- ★リロード用イベント
 
 local function playSound(soundId, parentPart, volume, pitch)
 	local sound = Instance.new("Sound")
@@ -43,18 +47,81 @@ local function playSound(soundId, parentPart, volume, pitch)
 	Debris:AddItem(sound, 2)
 end
 
+-- ★キャラクター生成時に弾数をセット
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function(character)
+		character:SetAttribute("Ammo", MAX_AMMO)
+		character:SetAttribute("MaxAmmo", MAX_AMMO)
+		character:SetAttribute("IsReloading", false)
+	end)
+end)
+
+-- ★リロード処理
+reloadEvent.OnServerEvent:Connect(function(player)
+	local character = player.Character
+	if not character then
+		return
+	end
+
+	-- すでにリロード中なら無視
+	if reloadingStatus[player.UserId] then
+		return
+	end
+
+	-- 弾が満タンならリロード不要
+	local current = character:GetAttribute("Ammo") or MAX_AMMO
+	if current >= MAX_AMMO then
+		return
+	end
+
+	-- リロード開始
+	reloadingStatus[player.UserId] = true
+	character:SetAttribute("IsReloading", true)
+
+	-- 音を鳴らす
+	playSound(SOUND_RELOAD, character.Head, 1, 1)
+
+	-- 時間経過待機
+	task.wait(RELOAD_TIME)
+
+	-- 完了処理
+	if character then
+		character:SetAttribute("Ammo", MAX_AMMO)
+		character:SetAttribute("IsReloading", false)
+	end
+	reloadingStatus[player.UserId] = false
+end)
+
+-- 発射処理
 fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	local character = player.Character
 	if not character then
 		return
 	end
 
+	-- リロード中なら撃てない
+	if reloadingStatus[player.UserId] then
+		return
+	end
+
+	-- クールダウン
 	local now = tick()
 	if cooldowns[player.UserId] and (now - cooldowns[player.UserId] < FIRE_COOLDOWN) then
 		return
 	end
 	cooldowns[player.UserId] = now
 
+	-- ★弾数チェック
+	local currentAmmo = character:GetAttribute("Ammo") or MAX_AMMO
+	if currentAmmo <= 0 then
+		playSound(SOUND_EMPTY, character.Head, 1, 1) -- カチッ
+		return
+	end
+
+	-- ★弾を減らす
+	character:SetAttribute("Ammo", currentAmmo - 1)
+
+	-- 銃の位置特定
 	local tool = character:FindFirstChildOfClass("Tool")
 	local muzzle = nil
 	if tool and tool:FindFirstChild("Handle") then
@@ -63,11 +130,12 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 
 	local spawnPos
 	local spawnDirection
+	local sourcePart -- 音源用
 
 	if muzzle then
 		spawnPos = muzzle.WorldPosition
 		spawnDirection = (mousePosition - spawnPos).Unit
-		playSound(SOUND_SHOOT, tool.Handle, 0.5, 1.2)
+		sourcePart = tool.Handle
 		effectEvent:FireAllClients("Muzzle", tool.Handle)
 	else
 		local rootPart = character:FindFirstChild("HumanoidRootPart")
@@ -76,9 +144,12 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 		end
 		spawnDirection = (mousePosition - rootPart.Position).Unit
 		spawnPos = rootPart.Position + spawnDirection * 5
-		playSound(SOUND_SHOOT, rootPart, 0.5, 1.2)
+		sourcePart = rootPart
 	end
 
+	playSound(SOUND_SHOOT, sourcePart, 0.5, 1.2)
+
+	-- 弾の生成
 	local bullet = Instance.new("Part")
 	bullet.Name = "RubberBullet"
 	bullet.Shape = Enum.PartType.Ball
@@ -106,51 +177,37 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	bullet.Velocity = spawnDirection * BULLET_SPEED
 	bullet:SetNetworkOwner(player)
 
-	-- ★ここから修正：自爆判定ロジック
+	-- 衝突処理（自爆あり）
 	local hasHitHumanoid = false
 	local lastBounceTime = 0
-
-	-- 「一度でも何かに当たったか？」を管理するフラグ
 	local canHitOwner = false
 
 	bullet.Touched:Connect(function(hit)
 		if hasHitHumanoid then
 			return
 		end
-
-		-- 速度が遅すぎる（転がらず止まっている）場合は判定しない
 		if bullet.AssemblyLinearVelocity.Magnitude < 10 then
 			return
 		end
 
-		-- 誰に当たったかチェック
 		local isOwner = hit:IsDescendantOf(character)
 
-		-- ★自爆制御
 		if isOwner then
-			-- まだ壁などに当たっていないなら、発射直後なので無視する
 			if not canHitOwner then
 				return
 			end
-			-- 壁に当たった後なら、自分でもダメージ処理へ進む
 		else
-			-- 自分以外（壁、床、敵）に当たった！
-			-- これ以降、跳ね返って自分に当たったらダメージを受けるようにする
 			canHitOwner = true
 		end
 
 		local humanoid = hit.Parent:FindFirstChild("Humanoid")
 		if humanoid then
-			-- 人間（自分含む）に当たった時の処理
 			hasHitHumanoid = true
 			humanoid:TakeDamage(DAMAGE)
 			playSound(SOUND_HIT, hit, 1.0, 1.0)
-
-			-- 弾を消す
 			bullet:Destroy()
 			print(player.Name .. " hit " .. hit.Parent.Name)
 		else
-			-- 壁・床に当たった時の処理
 			local t = tick()
 			if t - lastBounceTime > 0.1 then
 				lastBounceTime = t
@@ -163,4 +220,4 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	Debris:AddItem(bullet, BULLET_LIFE)
 end)
 
-print("Server: Self-Damage Enabled (After Bounce)")
+print("Server: Ammo & Reload System Loaded")

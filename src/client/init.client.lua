@@ -8,11 +8,10 @@ local Debris = game:GetService("Debris")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
-local remoteEventName = "FireBullet"
-local fireEvent = ReplicatedStorage:WaitForChild(remoteEventName)
-
-local effectEventName = "PlayEffect"
-local effectEvent = ReplicatedStorage:WaitForChild(effectEventName)
+-- RemoteEvents
+local fireEvent = ReplicatedStorage:WaitForChild("FireBullet")
+local effectEvent = ReplicatedStorage:WaitForChild("PlayEffect")
+local reloadEvent = ReplicatedStorage:WaitForChild("Reload") -- ★リロード用
 
 -- === 設定 ===
 local CROSSHAIR_IMAGE = "rbxassetid://128000667256203" -- 見やすい円形の照準
@@ -70,11 +69,13 @@ if player.Character then
 	end
 end
 
--- === 3. 発射入力 ===
+-- === 3. 入力処理（発射 & リロード） ===
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then
 		return
 	end
+
+	-- 発射 (左クリック)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 and isEquipped then
 		local targetPos = camera.CFrame.Position + (camera.CFrame.LookVector * 1000)
 		local rayParams = RaycastParams.new()
@@ -87,6 +88,11 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		end
 		fireEvent:FireServer(targetPos)
 	end
+
+	-- ★リロード (Rキー)
+	if input.KeyCode == Enum.KeyCode.R and isEquipped then
+		reloadEvent:FireServer()
+	end
 end)
 
 RunService.RenderStepped:Connect(function()
@@ -95,7 +101,7 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- === 4. 完成版マズルフラッシュ ===
+-- === 4. エフェクト ===
 effectEvent.OnClientEvent:Connect(function(effectType, data)
 	if effectType == "Muzzle" then
 		local toolHandle = data
@@ -103,41 +109,32 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 			return
 		end
 
-		-- 位置を決める
 		local spawnCFrame
 		local muzzle = toolHandle:FindFirstChild("Muzzle")
 
 		if muzzle then
 			spawnCFrame = muzzle.WorldCFrame
 		else
-			-- Muzzleがない場合の保険（少し前に出す）
 			spawnCFrame = toolHandle.CFrame * CFrame.new(0, 0, -2)
 		end
 
-		-- ★閃光エフェクト（黄色いネオン球）
 		local flash = Instance.new("Part")
 		flash.Shape = Enum.PartType.Ball
-		flash.Color = Color3.fromRGB(255, 230, 150) -- 明るいクリームイエロー
-		flash.Material = Enum.Material.Neon -- 発光
-		flash.Size = Vector3.new(0.8, 0.8, 0.8) -- 最初は小さめ
-		flash.CFrame = spawnCFrame * CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6) -- ランダム回転
+		flash.Color = Color3.fromRGB(255, 230, 150)
+		flash.Material = Enum.Material.Neon
+		flash.Size = Vector3.new(0.8, 0.8, 0.8)
+		flash.CFrame = spawnCFrame * CFrame.Angles(math.random() * 6, math.random() * 6, math.random() * 6)
 		flash.Anchored = true
 		flash.CanCollide = false
-		flash.Transparency = 0.1 -- 最初はくっきり
+		flash.Transparency = 0.1
 		flash.Parent = workspace
 
-		-- アニメーション（0.06秒で一気に膨らんで消える）
 		local tweenInfo = TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local goal = {
-			Size = Vector3.new(3.5, 3.5, 3.5), -- ドンと大きく
-			Transparency = 1, -- 透明に
-		}
+		local goal = { Size = Vector3.new(3.5, 3.5, 3.5), Transparency = 1 }
 		local tween = TweenService:Create(flash, tweenInfo, goal)
 		tween:Play()
-
-		-- ゴミ掃除
 		Debris:AddItem(flash, 0.1)
 	end
 end)
 
-print("Client: Final VFX Loaded")
+print("Client: Reload Input Added")
