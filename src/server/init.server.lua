@@ -4,11 +4,11 @@ local Debris = game:GetService("Debris")
 
 -- === 設定値 ===
 local BULLET_SIZE = 1.5
-local BULLET_SPEED = 80 -- 少し遅くして避けやすくする
+local BULLET_SPEED = 80
 local BULLET_LIFE = 15
 local BOUNCINESS = 1.0
-local DAMAGE = 20 -- 100で即死
-local FIRE_COOLDOWN = 0.5 -- 0.5秒に1発
+local DAMAGE = 20
+local FIRE_COOLDOWN = 0.5
 
 -- プレイヤーごとのクールダウン管理用テーブル
 local cooldowns = {}
@@ -31,34 +31,52 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	-- 1. クールダウン判定
 	local now = tick()
 	if cooldowns[player.UserId] and (now - cooldowns[player.UserId] < FIRE_COOLDOWN) then
-		return -- まだ撃てない
-	end
-	cooldowns[player.UserId] = now -- 撃った時間を記録
-
-	local rootPart = character:FindFirstChild("HumanoidRootPart")
-	if not rootPart then
 		return
 	end
+	cooldowns[player.UserId] = now
 
-	-- 発射位置（自爆を防ぐため、体の少し前から出す）
-	local spawnDirection = (mousePosition - rootPart.Position).Unit
-	local spawnPos = rootPart.Position + spawnDirection * 5
+	-- 2. 発射位置の決定（銃を持っているかチェック）
+	local tool = character:FindFirstChildOfClass("Tool")
+	local muzzle = nil
 
-	-- 2. 弾の生成
+	-- ツール > Handle > Muzzle があるか探す
+	if tool and tool:FindFirstChild("Handle") then
+		muzzle = tool.Handle:FindFirstChild("Muzzle")
+	end
+
+	local spawnPos
+	local spawnDirection
+
+	if muzzle then
+		-- A. 銃を持っている場合: 銃口(Muzzle)の位置を使う
+		spawnPos = muzzle.WorldPosition
+		spawnDirection = (mousePosition - spawnPos).Unit
+	else
+		-- B. 銃を持っていない場合（予備）: 体から出す
+		local rootPart = character:FindFirstChild("HumanoidRootPart")
+		if not rootPart then
+			return
+		end
+
+		spawnDirection = (mousePosition - rootPart.Position).Unit
+		spawnPos = rootPart.Position + spawnDirection * 5
+	end
+
+	-- 3. 弾の生成
 	local bullet = Instance.new("Part")
 	bullet.Name = "RubberBullet"
 	bullet.Shape = Enum.PartType.Ball
 	bullet.Size = Vector3.new(BULLET_SIZE, BULLET_SIZE, BULLET_SIZE)
-	bullet.Color = Color3.fromHSV(math.random(), 1, 1) -- 色をランダムにして誰の弾か分かりやすく
+	bullet.Color = Color3.fromHSV(math.random(), 1, 1)
 	bullet.Material = Enum.Material.Neon
-	bullet.Position = spawnPos
+	bullet.Position = spawnPos -- ここでエラーが出ていましたが、修正後は必ず値が入ります
 	bullet.CanCollide = true
 
 	-- 物理プロパティ
 	local physicalProperties = PhysicalProperties.new(0.1, 0.1, BOUNCINESS, 1.0, 1.0)
 	bullet.CustomPhysicalProperties = physicalProperties
 
-	-- 3. トレイル（軌跡）の追加
+	-- 4. トレイル（軌跡）
 	local trail = Instance.new("Trail")
 	local att0 = Instance.new("Attachment", bullet)
 	att0.Position = Vector3.new(0, 0.5, 0)
@@ -66,7 +84,7 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	att1.Position = Vector3.new(0, -0.5, 0)
 	trail.Attachment0 = att0
 	trail.Attachment1 = att1
-	trail.Lifetime = 0.3 -- 軌跡が残る時間
+	trail.Lifetime = 0.3
 	trail.Color = ColorSequence.new(bullet.Color)
 	trail.Parent = bullet
 
@@ -76,29 +94,19 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	-- ネットワークオーナーシップ（ラグ対策）
 	bullet:SetNetworkOwner(player)
 
-	-- 4. ダメージ判定 (重要！)
-	local hasHit = false -- 二重ヒット防止
+	-- 5. ダメージ判定
+	local hasHit = false
 
 	bullet.Touched:Connect(function(hit)
 		if hasHit then
 			return
 		end
 
-		-- 人間に当たったかチェック
 		local humanoid = hit.Parent:FindFirstChild("Humanoid")
 		if humanoid then
-			-- 自分自身に当たった場合の処理
-			-- ゲームコンセプト通り「自爆あり」ならこのまま。
-			-- もし「発射直後の自爆」だけ防ぎたいなら、ここで距離チェックなどを入れますが、
-			-- 今回は「カオス」がテーマなので、跳ね返ってきた弾は自分にも当たるようにします。
-
 			humanoid:TakeDamage(DAMAGE)
 			hasHit = true
-
-			-- 当たったら弾を消す（貫通させない場合）
 			bullet:Destroy()
-
-			-- キルログなどを出すならここに処理を追加
 			print(player.Name .. " hit " .. hit.Parent.Name)
 		end
 	end)
@@ -107,4 +115,4 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	Debris:AddItem(bullet, BULLET_LIFE)
 end)
 
-print("Bouncy Battle: Damage & Cooldown Loaded")
+print("Bouncy Battle: Server Logic Fixed & Loaded")
