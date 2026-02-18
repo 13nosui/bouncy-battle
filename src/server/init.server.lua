@@ -13,9 +13,9 @@ local MAX_AMMO = 10 -- ★最大弾数
 local RELOAD_TIME = 2.0 -- ★リロード時間
 
 -- === 音源ID ===
-local SOUND_SHOOT = "rbxassetid://2691586" -- ポンッという軽い発射音
+local SOUND_SHOOT = "rbxassetid://1194860475" -- ポンッという軽い発射音
 local SOUND_BOUNCE = "rbxassetid://9117581790" -- ビヨン（ゴムの跳ねる音）
-local SOUND_HIT = "rbxassetid://123589129673882" -- ヒット音
+local SOUND_HIT = "rbxassetid://102659831297149" -- ヒット音
 local SOUND_EMPTY = "rbxassetid://9117048518" -- ★カチッ（弾切れ）
 local SOUND_RELOAD = "rbxassetid://506273075" -- ★ジャキッ（リロード音）
 
