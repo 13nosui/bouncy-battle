@@ -23,6 +23,11 @@ local RUN_FOV = 85
 local TILT_ANGLE = 3 -- 傾く角度（度）
 local TILT_SPEED = 0.1 -- 傾きの滑らかさ
 
+local WALL_JUMP_FORCE = 70 -- 上に跳ぶ力
+local WALL_KICK_FORCE = 80 -- 壁から離れる力
+local WALL_CHECK_DIST = 4 -- 壁を検知する距離
+local WALL_JUMP_COOLDOWN = 0.5
+
 -- R15用の高さ設定
 local STAND_HIP_HEIGHT = 2 -- 立っている時の足の長さ
 local CROUCH_HIP_HEIGHT = 0.5 -- しゃがんだ時の足の長さ
@@ -32,6 +37,7 @@ local isSprinting = false
 local isCrouching = false
 local isSliding = false
 local lastSlideTime = 0
+local lastWallJumpTime = 0
 
 -- === 1. カメラティルト (横移動で画面を傾ける) ===
 local currentTilt = 0
@@ -202,6 +208,64 @@ end)
 -- 毎フレーム処理
 RunService.RenderStepped:Connect(function()
 	updateCameraTilt()
+end)
+
+-- ジャンプ入力の検知
+UserInputService.JumpRequest:Connect(function()
+	local now = tick()
+
+	-- クールダウン中なら無視
+	if now - lastWallJumpTime < WALL_JUMP_COOLDOWN then
+		return
+	end
+
+	-- 地面にいるときは普通のジャンプなので無視
+	if humanoid.FloorMaterial ~= Enum.Material.Air then
+		return
+	end
+
+	-- 目の前に壁があるかRaycast（レーザー）で調べる
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = { character } -- 自分は無視
+	params.FilterType = Enum.RaycastFilterType.Exclude
+
+	-- キャラクターの正面方向にレーザーを飛ばす
+	local rayOrigin = rootPart.Position
+	local rayDirection = rootPart.CFrame.LookVector * WALL_CHECK_DIST
+	local rayResult = workspace:Raycast(rayOrigin, rayDirection, params)
+
+	if rayResult then
+		-- 壁が見つかった！
+		lastWallJumpTime = now
+
+		-- 壁の法線（壁から垂直に出るベクトル）を取得
+		local wallNormal = rayResult.Normal
+
+		-- 跳ね返る方向を計算 (上方向 + 壁から離れる方向)
+		local jumpVelocity = (Vector3.new(0, 1, 0) * WALL_JUMP_FORCE) + (wallNormal * WALL_KICK_FORCE)
+
+		-- 既存の速度をリセットして、新しい力を加える
+		rootPart.AssemblyLinearVelocity = jumpVelocity
+
+		-- 音を鳴らす (「ダンッ！」という音)
+		local sound = Instance.new("Sound")
+		sound.SoundId = "rbxassetid://108486895030065" -- キック音
+		sound.Volume = 0.5
+		sound.Parent = rootPart
+		sound:Play()
+		game:GetService("Debris"):AddItem(sound, 1)
+
+		-- カメラを少し揺らす演出
+		local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local goal = { FieldOfView = BASE_FOV + 5 }
+		TweenService:Create(camera, tweenInfo, goal):Play()
+		task.delay(0.1, function()
+			TweenService:Create(camera, tweenInfo, { FieldOfView = BASE_FOV }):Play()
+		end)
+
+		-- ダブルジャンプのアニメーションがあればここで再生
+		-- humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+	end
 end)
 
 print("Client: Advanced Movement Loaded")
