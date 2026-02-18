@@ -4,7 +4,8 @@ local Debris = game:GetService("Debris")
 
 -- === 設定値 ===
 local BULLET_SIZE = 1.5
-local BULLET_SPEED = 80
+local BULLET_SPEED = 150
+local BULLET_GRAVITY = 0.1 -- ★追加: 重力倍率 (0 = 無重力, 1 = 通常, 0.2 = ふんわり)
 local BULLET_LIFE = 15
 local BOUNCINESS = 1.0
 local DAMAGE = 20
@@ -203,6 +204,14 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	bullet.Parent = workspace
 	bullet.Velocity = spawnDirection * BULLET_SPEED
 	bullet:SetNetworkOwner(player)
+
+	-- 重力調整用の力を加える
+	if BULLET_GRAVITY ~= 1 then
+		local antiGravity = Instance.new("BodyForce")
+		-- 弾の質量(Mass) × 重力(Gravity) × (1 - 倍率) 分の力を上向きに加えることで相殺する
+		antiGravity.Force = Vector3.new(0, bullet:GetMass() * workspace.Gravity * (1 - BULLET_GRAVITY), 0)
+		antiGravity.Parent = bullet
+	end
 
 	local hasHitHumanoid = false
 	local lastBounceTime = 0
