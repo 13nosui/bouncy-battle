@@ -1,5 +1,6 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService") -- ★追加
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
@@ -19,18 +20,16 @@ local SLIDE_COOLDOWN = 1.0
 
 local BASE_FOV = 70
 local RUN_FOV = 85
+local TILT_ANGLE = 3
+local TILT_SPEED = 0.1
 
-local TILT_ANGLE = 3 -- 傾く角度（度）
-local TILT_SPEED = 0.1 -- 傾きの滑らかさ
-
-local WALL_JUMP_FORCE = 70 -- 上に跳ぶ力
-local WALL_KICK_FORCE = 80 -- 壁から離れる力
-local WALL_CHECK_DIST = 4 -- 壁を検知する距離
+local WALL_JUMP_FORCE = 70
+local WALL_KICK_FORCE = 80
+local WALL_CHECK_DIST = 4
 local WALL_JUMP_COOLDOWN = 0.5
 
--- R15用の高さ設定
-local STAND_HIP_HEIGHT = 2 -- 立っている時の足の長さ
-local CROUCH_HIP_HEIGHT = 0.5 -- しゃがんだ時の足の長さ
+local STAND_HIP_HEIGHT = 2
+local CROUCH_HIP_HEIGHT = 0.5
 
 -- === 状態管理 ===
 local isSprinting = false
@@ -39,38 +38,27 @@ local isSliding = false
 local lastSlideTime = 0
 local lastWallJumpTime = 0
 
--- === 1. カメラティルト (横移動で画面を傾ける) ===
+-- === 1. カメラティルト ===
 local currentTilt = 0
-
 local function updateCameraTilt()
-	-- 移動入力の取得 (W, A, S, D)
 	local moveDir = humanoid.MoveDirection
 	local rightVec = camera.CFrame.RightVector
-
-	-- カメラの右方向と、移動方向の内積を取る
-	-- (右に動いていればプラス、左ならマイナスになる)
 	local dot = moveDir:Dot(rightVec)
 
-	-- 目標の傾き角度
 	local targetTilt = 0
-	if math.abs(dot) > 0.5 then -- 横移動している時だけ
+	if math.abs(dot) > 0.5 then
 		targetTilt = (dot > 0) and -TILT_ANGLE or TILT_ANGLE
 	end
-
-	-- 滑らかに補間 (Lerp)
 	currentTilt = currentTilt + (targetTilt - currentTilt) * TILT_SPEED
-
-	-- カメラに適用
 	camera.CFrame = camera.CFrame * CFrame.Angles(0, 0, math.rad(currentTilt))
 end
 
 -- === 2. アクション処理 ===
 
--- 速度とFOVの更新
 local function updateMovementState()
 	if isSliding then
 		return
-	end -- スライディング中は制御しない
+	end
 
 	local targetSpeed = WALK_SPEED
 	local targetFOV = BASE_FOV
@@ -84,20 +72,11 @@ local function updateMovementState()
 		targetFOV = RUN_FOV
 	end
 
-	-- 速度適用
 	humanoid.WalkSpeed = targetSpeed
-
-	-- FOV適用 (Tween)
-	local tweenInfo = TweenInfo.new(0.2, Enum.EasingStyle.Quad)
-	TweenService:Create(camera, tweenInfo, { FieldOfView = targetFOV }):Play()
-
-	-- しゃがみ高さ適用 (Tween)
-	-- ※HipHeightを変えると足が埋まるので、擬似的に背が低くなる
-	local heightTween = TweenService:Create(humanoid, tweenInfo, { HipHeight = targetHipHeight })
-	heightTween:Play()
+	TweenService:Create(camera, TweenInfo.new(0.2), { FieldOfView = targetFOV }):Play()
+	TweenService:Create(humanoid, TweenInfo.new(0.2), { HipHeight = targetHipHeight }):Play()
 end
 
--- スライディング実行
 local function startSlide()
 	local now = tick()
 	if now - lastSlideTime < SLIDE_COOLDOWN then
@@ -107,9 +86,7 @@ local function startSlide()
 		return
 	end
 
-	-- 走っている時かつ、移動している時のみ
 	if not isSprinting or humanoid.MoveDirection.Magnitude < 0.1 then
-		-- 止まっているならただのしゃがみ
 		isCrouching = true
 		updateMovementState()
 		return
@@ -118,35 +95,25 @@ local function startSlide()
 	isSliding = true
 	lastSlideTime = now
 
-	-- 音 (もしあれば)
-	-- local sound = Instance.new("Sound", rootPart) ...
-
-	-- 物理的な力を加える
 	local slideVelocity = Instance.new("BodyVelocity")
 	slideVelocity.Name = "SlideVelocity"
-	slideVelocity.MaxForce = Vector3.new(100000, 0, 100000) -- Y軸は重力に任せる
+	slideVelocity.MaxForce = Vector3.new(100000, 0, 100000)
 	slideVelocity.Velocity = rootPart.CFrame.LookVector * SLIDE_SPEED
 	slideVelocity.Parent = rootPart
 
-	-- 姿勢を低くする
-	local tweenInfo = TweenInfo.new(0.1)
-	TweenService:Create(humanoid, tweenInfo, { HipHeight = CROUCH_HIP_HEIGHT }):Play()
-	TweenService:Create(camera, tweenInfo, { FieldOfView = RUN_FOV + 10 }):Play() -- 更に疾走感
+	TweenService:Create(humanoid, TweenInfo.new(0.1), { HipHeight = CROUCH_HIP_HEIGHT }):Play()
+	TweenService:Create(camera, TweenInfo.new(0.1), { FieldOfView = RUN_FOV + 10 }):Play()
 
-	-- 指定時間後に終了
 	task.delay(SLIDE_DURATION, function()
 		if slideVelocity then
 			slideVelocity:Destroy()
 		end
 		isSliding = false
 
-		-- スライディング後の状態復帰
-		if UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) then
-			isSprinting = true
+		if isSprinting then -- まだダッシュボタン押してたら
 			isCrouching = false
-		elseif UserInputService:IsKeyDown(Enum.KeyCode.C) then
+		elseif isCrouching then -- しゃがみボタン押してたら
 			isSprinting = false
-			isCrouching = true
 		else
 			isSprinting = false
 			isCrouching = false
@@ -155,65 +122,80 @@ local function startSlide()
 	end)
 end
 
--- === 3. 入力監視 ===
+-- === 3. 入力バインド (PC & Mobile) ===
 
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then
-		return
-	end
-
-	-- ダッシュ (Shift OR L3押し込み)
-	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.ButtonL3 then
+-- ダッシュ処理
+local function handleSprint(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
 		isSprinting = true
 		if isCrouching then
 			isCrouching = false
-		end -- しゃがみ解除
+		end
+		updateMovementState()
+	elseif inputState == Enum.UserInputState.End then
+		isSprinting = false
 		updateMovementState()
 	end
+end
 
-	-- しゃがみ / スライディング (C OR コントローラーBボタン/PSなら〇)
-	if input.KeyCode == Enum.KeyCode.C or input.KeyCode == Enum.KeyCode.ButtonB then
+-- しゃがみ/スライド処理
+local function handleCrouch(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
 		if isSprinting then
 			startSlide()
 		else
 			isCrouching = true
 			updateMovementState()
 		end
-	end
-end)
-
-UserInputService.InputEnded:Connect(function(input, gameProcessed)
-	-- ダッシュ解除
-	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.ButtonL3 then
-		isSprinting = false
-		updateMovementState()
-	end
-
-	-- しゃがみ解除
-	if input.KeyCode == Enum.KeyCode.C or input.KeyCode == Enum.KeyCode.ButtonB then
+	elseif inputState == Enum.UserInputState.End then
 		if not isSliding then
 			isCrouching = false
 			updateMovementState()
 		end
 	end
-end)
+end
 
--- キャラクターがリスポーンした時の再設定
+-- 初期設定
+local function setupControls()
+	-- PCキー + モバイルボタン(true) をバインド
+	ContextActionService:BindAction("SprintAction", handleSprint, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
+	ContextActionService:BindAction("CrouchAction", handleCrouch, true, Enum.KeyCode.C, Enum.KeyCode.ButtonB)
+
+	-- ボタン装飾
+	local sprintBtn = ContextActionService:GetButton("SprintAction")
+	if sprintBtn then
+		ContextActionService:SetTitle("SprintAction", "DASH")
+		-- 左手親指の上あたり
+		ContextActionService:SetPosition("SprintAction", UDim2.new(0.15, 0, 0.6, 0))
+	end
+
+	local crouchBtn = ContextActionService:GetButton("CrouchAction")
+	if crouchBtn then
+		ContextActionService:SetTitle("CrouchAction", "SLIDE")
+		-- 右手親指、リロードの横あたり
+		ContextActionService:SetPosition("CrouchAction", UDim2.new(0.85, 0, 0.7, 0))
+	end
+end
+
+setupControls()
+
+-- === その他処理 ===
+
 player.CharacterAdded:Connect(function(newChar)
 	character = newChar
 	humanoid = newChar:WaitForChild("Humanoid")
 	rootPart = newChar:WaitForChild("HumanoidRootPart")
+	setupControls() -- キャラ復活時に再バインド
 end)
 
--- 毎フレーム処理
 RunService.RenderStepped:Connect(function()
 	updateCameraTilt()
 end)
 
--- ジャンプ入力の検知
+-- 壁ジャンプ (PCスペースキー用)
+-- モバイルのジャンプボタンはRoblox標準のものが右下にあります
 UserInputService.JumpRequest:Connect(function()
 	local now = tick()
-
 	if now - lastWallJumpTime < WALL_JUMP_COOLDOWN then
 		return
 	end
@@ -232,25 +214,16 @@ UserInputService.JumpRequest:Connect(function()
 	if rayResult then
 		lastWallJumpTime = now
 		local wallNormal = rayResult.Normal
-
 		local jumpVelocity = (Vector3.new(0, 1, 0) * WALL_JUMP_FORCE) + (wallNormal * WALL_KICK_FORCE)
 		rootPart.AssemblyLinearVelocity = jumpVelocity
 
-		-- 壁キック音
 		local sound = Instance.new("Sound")
 		sound.SoundId = "rbxassetid://108486895030065"
-		sound.Volume = 1.0 -- 音量アップ
+		sound.Volume = 1.0
 		sound.Parent = rootPart
 		sound:Play()
 		game:GetService("Debris"):AddItem(sound, 1)
-
-		local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local goal = { FieldOfView = BASE_FOV + 10 } -- 揺れを大きく
-		TweenService:Create(camera, tweenInfo, goal):Play()
-		task.delay(0.1, function()
-			TweenService:Create(camera, tweenInfo, { FieldOfView = BASE_FOV }):Play()
-		end)
 	end
 end)
 
-print("Client: Advanced Movement Loaded")
+print("Client: Mobile Ready Movement")

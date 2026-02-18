@@ -1,6 +1,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local ContextActionService = game:GetService("ContextActionService") -- ★追加
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -11,11 +12,11 @@ local camera = workspace.CurrentCamera
 -- RemoteEvents
 local fireEvent = ReplicatedStorage:WaitForChild("FireBullet")
 local effectEvent = ReplicatedStorage:WaitForChild("PlayEffect")
-local reloadEvent = ReplicatedStorage:WaitForChild("Reload") -- ★リロード用
+local reloadEvent = ReplicatedStorage:WaitForChild("Reload")
 
 -- === 設定 ===
-local CROSSHAIR_IMAGE = "rbxassetid://128000667256203" -- 見やすい円形の照準
-local CROSSHAIR_SIZE = 80 -- サイズ（ピクセル）大きくして見やすく
+local CROSSHAIR_IMAGE = "rbxassetid://128000667256203"
+local CROSSHAIR_SIZE = 80
 
 -- === 1. 照準GUI ===
 local screenGui = Instance.new("ScreenGui")
@@ -32,14 +33,94 @@ crosshair.AnchorPoint = Vector2.new(0.5, 0.5)
 crosshair.Position = UDim2.new(0.5, 0, 0.5, 0)
 crosshair.Parent = screenGui
 
--- === 2. 銃装備の監視 ===
+-- === 2. アクション関数 ===
 local isEquipped = false
+
+-- 発射処理
+local function handleFire(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin and isEquipped then
+		local targetPos = camera.CFrame.Position + (camera.CFrame.LookVector * 1000)
+		local rayParams = RaycastParams.new()
+		rayParams.FilterDescendantsInstances = { player.Character }
+		rayParams.FilterType = Enum.RaycastFilterType.Exclude
+
+		local rayResult = workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * 1000, rayParams)
+		if rayResult then
+			targetPos = rayResult.Position
+		end
+		fireEvent:FireServer(targetPos)
+		return Enum.ContextActionResult.Sink
+	end
+	return Enum.ContextActionResult.Pass
+end
+
+-- リロード処理
+local function handleReload(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin and isEquipped then
+		reloadEvent:FireServer()
+		return Enum.ContextActionResult.Sink
+	end
+	return Enum.ContextActionResult.Pass
+end
+
+-- 装備切替処理 (モバイル用ボタンは作らず、既存のキーのみ)
+local function handleToggle(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
+		local character = player.Character
+		if not character then
+			return
+		end
+		local humanoid = character:FindFirstChild("Humanoid")
+		if not humanoid then
+			return
+		end
+
+		local currentTool = character:FindFirstChild("BouncyGun")
+		if currentTool then
+			humanoid:UnequipTools()
+		else
+			local backpack = player:FindFirstChild("Backpack")
+			if backpack then
+				local tool = backpack:FindFirstChild("BouncyGun")
+				if tool then
+					humanoid:EquipTool(tool)
+				end
+			end
+		end
+	end
+end
+
+-- === 3. 装備監視とボタン登録 ===
 
 local function onEquip()
 	isEquipped = true
 	screenGui.Enabled = true
 	UserInputService.MouseIconEnabled = false
 	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+
+	-- ★モバイル対応: ボタンを作成してバインド
+	-- 第3引数の true が「モバイルボタンを作る」という意味
+	ContextActionService:BindAction(
+		"FireAction",
+		handleFire,
+		true,
+		Enum.UserInputType.MouseButton1,
+		Enum.KeyCode.ButtonR2
+	)
+	ContextActionService:BindAction("ReloadAction", handleReload, true, Enum.KeyCode.R, Enum.KeyCode.ButtonX)
+
+	-- ボタンの見た目調整 (位置や画像)
+	local fireBtn = ContextActionService:GetButton("FireAction")
+	if fireBtn then
+		ContextActionService:SetTitle("FireAction", "FIRE")
+		ContextActionService:SetPosition("FireAction", UDim2.new(0.7, 0, 0.6, 0)) -- 右手親指あたり
+	end
+
+	local reloadBtn = ContextActionService:GetButton("ReloadAction")
+	if reloadBtn then
+		ContextActionService:SetTitle("ReloadAction", "RLD")
+		ContextActionService:SetPosition("ReloadAction", UDim2.new(0.6, 0, 0.8, 0)) -- 少し下
+	end
 end
 
 local function onUnequip()
@@ -47,7 +128,14 @@ local function onUnequip()
 	screenGui.Enabled = false
 	UserInputService.MouseIconEnabled = true
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+
+	-- 装備解除したらボタンも消す
+	ContextActionService:UnbindAction("FireAction")
+	ContextActionService:UnbindAction("ReloadAction")
 end
+
+-- 装備切替のバインド (常時有効)
+ContextActionService:BindAction("ToggleWeapon", handleToggle, false, Enum.KeyCode.ButtonY)
 
 player.CharacterAdded:Connect(function(char)
 	char.ChildAdded:Connect(function(child)
@@ -69,64 +157,6 @@ if player.Character then
 	end
 end
 
--- === 3. 入力処理（発射 & リロード & 装備切り替え） ===
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-	if gameProcessed then
-		return
-	end
-
-	-- 発射 (左クリック OR R2トリガー)
-	if
-		(input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.ButtonR2)
-		and isEquipped
-	then
-		local targetPos = camera.CFrame.Position + (camera.CFrame.LookVector * 1000)
-		local rayParams = RaycastParams.new()
-		rayParams.FilterDescendantsInstances = { player.Character }
-		rayParams.FilterType = Enum.RaycastFilterType.Exclude
-
-		local rayResult = workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * 1000, rayParams)
-		if rayResult then
-			targetPos = rayResult.Position
-		end
-		fireEvent:FireServer(targetPos)
-	end
-
-	-- リロード (Rキー OR コントローラーXボタン/PSなら□)
-	if (input.KeyCode == Enum.KeyCode.R or input.KeyCode == Enum.KeyCode.ButtonX) and isEquipped then
-		reloadEvent:FireServer()
-	end
-
-	-- ★追加: 武器の装備/解除 (コントローラーYボタン/PSなら△)
-	if input.KeyCode == Enum.KeyCode.ButtonY then
-		local character = player.Character
-		if not character then
-			return
-		end
-		local humanoid = character:FindFirstChild("Humanoid")
-		if not humanoid then
-			return
-		end
-
-		-- 今持っているかチェック
-		local currentTool = character:FindFirstChild("BouncyGun")
-
-		if currentTool then
-			-- 持っているならしまう
-			humanoid:UnequipTools()
-		else
-			-- 持っていないならバックパックから探して装備する
-			local backpack = player:FindFirstChild("Backpack")
-			if backpack then
-				local tool = backpack:FindFirstChild("BouncyGun")
-				if tool then
-					humanoid:EquipTool(tool)
-				end
-			end
-		end
-	end
-end)
-
 RunService.RenderStepped:Connect(function()
 	if isEquipped then
 		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
@@ -143,7 +173,6 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 
 		local spawnCFrame
 		local muzzle = toolHandle:FindFirstChild("Muzzle")
-
 		if muzzle then
 			spawnCFrame = muzzle.WorldCFrame
 		else
@@ -169,4 +198,4 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 	end
 end)
 
-print("Client: Reload Input Added")
+print("Client: Mobile Ready Gun System")
