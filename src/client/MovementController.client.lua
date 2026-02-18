@@ -214,57 +214,42 @@ end)
 UserInputService.JumpRequest:Connect(function()
 	local now = tick()
 
-	-- クールダウン中なら無視
 	if now - lastWallJumpTime < WALL_JUMP_COOLDOWN then
 		return
 	end
-
-	-- 地面にいるときは普通のジャンプなので無視
 	if humanoid.FloorMaterial ~= Enum.Material.Air then
 		return
 	end
 
-	-- 目の前に壁があるかRaycast（レーザー）で調べる
 	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = { character } -- 自分は無視
+	params.FilterDescendantsInstances = { character }
 	params.FilterType = Enum.RaycastFilterType.Exclude
 
-	-- キャラクターの正面方向にレーザーを飛ばす
 	local rayOrigin = rootPart.Position
 	local rayDirection = rootPart.CFrame.LookVector * WALL_CHECK_DIST
 	local rayResult = workspace:Raycast(rayOrigin, rayDirection, params)
 
 	if rayResult then
-		-- 壁が見つかった！
 		lastWallJumpTime = now
-
-		-- 壁の法線（壁から垂直に出るベクトル）を取得
 		local wallNormal = rayResult.Normal
 
-		-- 跳ね返る方向を計算 (上方向 + 壁から離れる方向)
 		local jumpVelocity = (Vector3.new(0, 1, 0) * WALL_JUMP_FORCE) + (wallNormal * WALL_KICK_FORCE)
-
-		-- 既存の速度をリセットして、新しい力を加える
 		rootPart.AssemblyLinearVelocity = jumpVelocity
 
-		-- 音を鳴らす (「ダンッ！」という音)
+		-- 壁キック音
 		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://108486895030065" -- キック音
-		sound.Volume = 0.5
+		sound.SoundId = "rbxassetid://108486895030065"
+		sound.Volume = 1.0 -- 音量アップ
 		sound.Parent = rootPart
 		sound:Play()
 		game:GetService("Debris"):AddItem(sound, 1)
 
-		-- カメラを少し揺らす演出
 		local tweenInfo = TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local goal = { FieldOfView = BASE_FOV + 5 }
+		local goal = { FieldOfView = BASE_FOV + 10 } -- 揺れを大きく
 		TweenService:Create(camera, tweenInfo, goal):Play()
 		task.delay(0.1, function()
 			TweenService:Create(camera, tweenInfo, { FieldOfView = BASE_FOV }):Play()
 		end)
-
-		-- ダブルジャンプのアニメーションがあればここで再生
-		-- humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
 	end
 end)
 
