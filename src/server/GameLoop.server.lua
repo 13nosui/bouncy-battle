@@ -15,9 +15,9 @@ local CurrentMap = nil
 
 -- 状態管理
 local isMatchActive = false
-local gameMode = "FFA" -- "FFA" (個人戦) or "TDM" (チーム戦)
+local gameMode = "FFA"
 
--- メッセージ通知用
+-- イベント作成
 local messageEvent = ReplicatedStorage:FindFirstChild("GameMessage")
 if not messageEvent then
 	messageEvent = Instance.new("RemoteEvent")
@@ -25,27 +25,33 @@ if not messageEvent then
 	messageEvent.Parent = ReplicatedStorage
 end
 
+-- ★追加: カメラ制御用イベント
+local cameraEvent = ReplicatedStorage:FindFirstChild("CameraEvent")
+if not cameraEvent then
+	cameraEvent = Instance.new("RemoteEvent")
+	cameraEvent.Name = "CameraEvent"
+	cameraEvent.Parent = ReplicatedStorage
+end
+
 -- === ヘルパー関数 ===
 
 local function broadcast(text, color)
-	-- 第3引数などはHUD側で制御しているので、ここではテキストと色だけ送る
 	messageEvent:FireAllClients(text, color)
 end
 
--- 全員をロビーに戻す & Botのお片付け
 local function teleportToLobby()
 	local lobbySpawn = Workspace:FindFirstChild("LobbySpawn")
 
-	-- 1. プレイヤーをロビーへ
 	if lobbySpawn then
 		for _, player in ipairs(Players:GetPlayers()) do
-			player.Team = nil -- チーム解除
-			player:LoadCharacter() -- リスポーン
+			player.Team = nil
+			player:LoadCharacter()
+
+			-- ★追加: ロビーに戻ったらカメラをリセットさせる指示を送る（ターゲットを自分に戻すため）
+			-- クライアント側でLoadCharacter時に自動で戻るはずだが、念の為
 		end
 	end
 
-	-- 2. 残っているBot (Dummy) をすべて削除
-	-- (BotSpawnerがまた新しいのを生み出しますが、試合中のゴミはここで消します)
 	for _, child in ipairs(Workspace:GetChildren()) do
 		if child.Name == "Dummy" and child:FindFirstChild("Humanoid") then
 			child:Destroy()
@@ -53,7 +59,6 @@ local function teleportToLobby()
 	end
 end
 
--- 全員をアリーナに送る
 local function teleportToArena()
 	local spawns = {}
 	if CurrentMap then
@@ -69,7 +74,6 @@ local function teleportToArena()
 		return
 	end
 
-	-- チーム分けロジック (TDMの場合)
 	local players = Players:GetPlayers()
 	if gameMode == "TDM" then
 		for i, player in ipairs(players) do
@@ -81,7 +85,6 @@ local function teleportToArena()
 		end
 	end
 
-	-- テレポート
 	for i, player in ipairs(players) do
 		local spawn = spawns[math.random(1, #spawns)]
 		if player.Character then
@@ -90,24 +93,20 @@ local function teleportToArena()
 	end
 end
 
--- マップの読み込み
 local function loadMap(mapName)
 	if CurrentMap then
 		CurrentMap:Destroy()
 	end
-
 	local mapTemplate = MapsFolder:FindFirstChild(mapName)
 	if not mapTemplate then
 		warn("Map not found: " .. mapName)
 		return
 	end
-
 	CurrentMap = mapTemplate:Clone()
 	CurrentMap.Parent = Workspace
 	print("Map Loaded: " .. mapName)
 end
 
--- スコアリセット
 local function resetScores()
 	for _, player in ipairs(Players:GetPlayers()) do
 		local stats = player:FindFirstChild("leaderstats")
@@ -123,7 +122,6 @@ local function startRound()
 	isMatchActive = true
 	resetScores()
 
-	-- ランダムにモード決定
 	if math.random() > 0.5 then
 		gameMode = "FFA"
 		broadcast("MODE: FREE FOR ALL", Color3.new(1, 1, 0))
@@ -132,32 +130,23 @@ local function startRound()
 		broadcast("MODE: TEAM DEATHMATCH", Color3.new(0, 1, 1))
 	end
 
-	task.wait(3) -- モード表示を少し長く見せる
+	task.wait(3)
 
-	-- マップ読み込み
 	loadMap("Map_City")
-
-	-- プレイヤー転送
 	teleportToArena()
 
 	broadcast("START!", Color3.new(0, 1, 0))
 
-	-- 試合監視ループ
 	local startTime = tick()
 	while isMatchActive do
 		task.wait(1)
-
-		-- 時間切れチェック
 		if tick() - startTime > ROUND_TIME then
 			broadcast("TIME UP!", Color3.new(1, 1, 1))
 			isMatchActive = false
 		end
-
-		-- 勝利判定は onPlayerAdded 内の Changed イベントで行うようになりました
 	end
 
-	-- 試合終了処理
-	task.wait(3)
+	task.wait(5) -- 勝韻に浸る時間を少し長く
 	if CurrentMap then
 		CurrentMap:Destroy()
 	end
@@ -166,7 +155,6 @@ end
 
 local function gameLoop()
 	while true do
-		-- ロビー待機
 		broadcast("Waiting for players...", Color3.new(1, 1, 1))
 		repeat
 			task.wait(1)
@@ -176,16 +164,12 @@ local function gameLoop()
 			broadcast("Next match in " .. i, Color3.new(1, 1, 1))
 			task.wait(1)
 		end
-
-		-- 試合開始
 		startRound()
 	end
 end
 
 -- === イベント接続 ===
 
--- キル加算処理（プレイヤー同士の場合）
--- Botキルの加算はBotSpawner側でやっているので、ここはプレイヤー用
 local function onHumanoidDied(humanoid, player)
 	if not isMatchActive then
 		return
@@ -193,9 +177,23 @@ local function onHumanoidDied(humanoid, player)
 
 	local creatorTag = humanoid:FindFirstChild("creator")
 	if creatorTag and creatorTag.Value then
-		local killer = creatorTag.Value
-		if killer and killer:IsA("Player") and killer ~= player then
-			-- チームキル防止
+		local killer = creatorTag.Value -- Player または Bot(Model)
+
+		-- ★追加: キルカメラ処理
+		-- 倒されたプレイヤー(player)に対して、キラー(killer)を見ろと命令する
+		local killerChar = nil
+		if killer:IsA("Player") then
+			killerChar = killer.Character
+		elseif killer:IsA("Model") then
+			killerChar = killer -- Botの場合
+		end
+
+		if killerChar then
+			cameraEvent:FireClient(player, "Kill", killerChar)
+		end
+
+		-- 以下、スコア処理（Playerキラーのみ）
+		if killer:IsA("Player") and killer ~= player then
 			if gameMode == "TDM" and killer.Team == player.Team and player.Team ~= nil then
 				return
 			end
@@ -209,7 +207,6 @@ local function onHumanoidDied(humanoid, player)
 end
 
 Players.PlayerAdded:Connect(function(player)
-	-- リーダーボード
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
 	leaderstats.Parent = player
@@ -218,12 +215,17 @@ Players.PlayerAdded:Connect(function(player)
 	kills.Value = 0
 	kills.Parent = leaderstats
 
-	-- ★★★ 重要: スコアが変わったら即座に勝敗チェック！ ★★★
-	-- これにより、Botを倒してもプレイヤーを倒しても勝利判定が動きます
 	kills.Changed:Connect(function(newValue)
 		if isMatchActive and newValue >= WIN_SCORE then
 			broadcast(player.Name .. " WINS!", Color3.new(1, 0.5, 0))
-			isMatchActive = false -- これでループが止まり、ロビーへ戻る処理が走る
+
+			-- ★追加: 勝利カメラ
+			-- 全員に対して、勝者(player.Character)を映せと命令する
+			if player.Character then
+				cameraEvent:FireAllClients("Win", player.Character)
+			end
+
+			isMatchActive = false
 		end
 	end)
 
