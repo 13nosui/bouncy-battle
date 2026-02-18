@@ -162,8 +162,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		return
 	end
 
-	-- ダッシュ (Shift)
-	if input.KeyCode == Enum.KeyCode.LeftShift then
+	-- ダッシュ (Shift OR L3押し込み)
+	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.ButtonL3 then
 		isSprinting = true
 		if isCrouching then
 			isCrouching = false
@@ -171,8 +171,8 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		updateMovementState()
 	end
 
-	-- しゃがみ / スライディング (C)
-	if input.KeyCode == Enum.KeyCode.C then
+	-- しゃがみ / スライディング (C OR コントローラーBボタン/PSなら〇)
+	if input.KeyCode == Enum.KeyCode.C or input.KeyCode == Enum.KeyCode.ButtonB then
 		if isSprinting then
 			startSlide()
 		else
@@ -184,13 +184,13 @@ end)
 
 UserInputService.InputEnded:Connect(function(input, gameProcessed)
 	-- ダッシュ解除
-	if input.KeyCode == Enum.KeyCode.LeftShift then
+	if input.KeyCode == Enum.KeyCode.LeftShift or input.KeyCode == Enum.KeyCode.ButtonL3 then
 		isSprinting = false
 		updateMovementState()
 	end
 
 	-- しゃがみ解除
-	if input.KeyCode == Enum.KeyCode.C then
+	if input.KeyCode == Enum.KeyCode.C or input.KeyCode == Enum.KeyCode.ButtonB then
 		if not isSliding then
 			isCrouching = false
 			updateMovementState()

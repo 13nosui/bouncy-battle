@@ -3,7 +3,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
-local StarterGui = game:GetService("StarterGui") -- 追加: CoreGui制御用
+local StarterGui = game:GetService("StarterGui")
+local GuiService = game:GetService("GuiService") -- ★追加
 
 local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
@@ -18,7 +19,7 @@ end
 
 -- === UI作成 ===
 
--- ★追加: タイトル画面ではバックパック（ツールバー）を隠す
+-- タイトル画面ではバックパック（ツールバー）を隠す
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
 end)
@@ -37,7 +38,7 @@ bgFrame.Parent = screenGui
 -- タイトルロゴ
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, 0, 0.3, 0)
-titleLabel.Position = UDim2.new(0, 0, 0.1, 0) -- ★変更: 少し上へ調整
+titleLabel.Position = UDim2.new(0, 0, 0.1, 0)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "BOUNCY BATTLE"
 titleLabel.Font = Enum.Font.FredokaOne
@@ -49,7 +50,7 @@ titleLabel.Parent = screenGui
 -- サブタイトル
 local subLabel = Instance.new("TextLabel")
 subLabel.Size = UDim2.new(1, 0, 0.1, 0)
-subLabel.Position = UDim2.new(0, 0, 0.4, 0) -- ★変更: タイトルの下に来るように調整
+subLabel.Position = UDim2.new(0, 0, 0.4, 0)
 subLabel.BackgroundTransparency = 1
 subLabel.Text = "CHAOTIC PHYSICS FPS"
 subLabel.Font = Enum.Font.GothamBold
@@ -68,6 +69,7 @@ playButton.Text = "PLAY"
 playButton.Font = Enum.Font.GothamBlack
 playButton.TextSize = 40
 playButton.TextColor3 = Color3.new(0, 0, 0)
+playButton.Selectable = true -- ★追加: コントローラーで選択可能にする
 playButton.Parent = screenGui
 
 -- ボタン装飾
@@ -85,10 +87,22 @@ playButton.MouseLeave:Connect(function()
 	TweenService:Create(playButton, TweenInfo.new(0.1), { Size = UDim2.new(0, 250, 0, 80) }):Play()
 end)
 
+-- ★追加: コントローラーで選択された時の見た目変化 (SelectionImageObjectを使わない場合)
+playButton.SelectionImageObject = nil -- デフォルトの点線枠を消す
+
+playButton.SelectionGained:Connect(function()
+	-- 選択されたら少し大きく
+	TweenService:Create(playButton, TweenInfo.new(0.1), { Size = UDim2.new(0, 270, 0, 90) }):Play()
+end)
+playButton.SelectionLost:Connect(function()
+	-- 選択が外れたら戻す
+	TweenService:Create(playButton, TweenInfo.new(0.1), { Size = UDim2.new(0, 250, 0, 80) }):Play()
+end)
+
 -- === カメラ演出 ===
 local isTitleActive = true
 local angle = 0
-local CAMERA_CENTER = Vector3.new(0, 5000, 0)
+local CAMERA_CENTER = Vector3.new(0, 1010, 0)
 local CAMERA_DIST = 40
 local CAMERA_HEIGHT = 20
 
@@ -114,9 +128,23 @@ end
 
 RunService.RenderStepped:Connect(updateCamera)
 
+-- ★追加: 起動時にコントローラーのフォーカスをPLAYボタンに合わせる
+task.delay(0.5, function()
+	if isTitleActive and screenGui.Parent then
+		GuiService.SelectedObject = playButton
+	end
+end)
+
 -- === ゲーム開始処理 ===
+-- MouseButton1Click はコントローラーのAボタン(Xbox) / ×ボタン(PS) でも発火します
 playButton.MouseButton1Click:Connect(function()
+	if not isTitleActive then
+		return
+	end
 	isTitleActive = false
+
+	-- ★追加: UI選択を解除（これをしておかないとゲーム中に見えないボタンを選択し続けてしまう）
+	GuiService.SelectedObject = nil
 
 	-- UIを消すアニメーション
 	local tweenInfo = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
@@ -131,7 +159,7 @@ playButton.MouseButton1Click:Connect(function()
 
 	screenGui:Destroy()
 
-	-- ★追加: ロビーに入るのでバックパックを表示に戻す
+	-- ロビーに入るのでバックパックを表示に戻す
 	pcall(function()
 		StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, true)
 	end)

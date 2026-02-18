@@ -69,14 +69,17 @@ if player.Character then
 	end
 end
 
--- === 3. 入力処理（発射 & リロード） ===
+-- === 3. 入力処理（発射 & リロード & 装備切り替え） ===
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then
 		return
 	end
 
-	-- 発射 (左クリック)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 and isEquipped then
+	-- 発射 (左クリック OR R2トリガー)
+	if
+		(input.UserInputType == Enum.UserInputType.MouseButton1 or input.KeyCode == Enum.KeyCode.ButtonR2)
+		and isEquipped
+	then
 		local targetPos = camera.CFrame.Position + (camera.CFrame.LookVector * 1000)
 		local rayParams = RaycastParams.new()
 		rayParams.FilterDescendantsInstances = { player.Character }
@@ -89,9 +92,38 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		fireEvent:FireServer(targetPos)
 	end
 
-	-- ★リロード (Rキー)
-	if input.KeyCode == Enum.KeyCode.R and isEquipped then
+	-- リロード (Rキー OR コントローラーXボタン/PSなら□)
+	if (input.KeyCode == Enum.KeyCode.R or input.KeyCode == Enum.KeyCode.ButtonX) and isEquipped then
 		reloadEvent:FireServer()
+	end
+
+	-- ★追加: 武器の装備/解除 (コントローラーYボタン/PSなら△)
+	if input.KeyCode == Enum.KeyCode.ButtonY then
+		local character = player.Character
+		if not character then
+			return
+		end
+		local humanoid = character:FindFirstChild("Humanoid")
+		if not humanoid then
+			return
+		end
+
+		-- 今持っているかチェック
+		local currentTool = character:FindFirstChild("BouncyGun")
+
+		if currentTool then
+			-- 持っているならしまう
+			humanoid:UnequipTools()
+		else
+			-- 持っていないならバックパックから探して装備する
+			local backpack = player:FindFirstChild("Backpack")
+			if backpack then
+				local tool = backpack:FindFirstChild("BouncyGun")
+				if tool then
+					humanoid:EquipTool(tool)
+				end
+			end
+		end
 	end
 end)
 
