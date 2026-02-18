@@ -102,7 +102,7 @@ end)
 -- === カメラ演出 ===
 local isTitleActive = true
 local angle = 0
-local CAMERA_CENTER = Vector3.new(0, 1010, 0)
+local CAMERA_CENTER = Vector3.new(0, 5000, 0)
 local CAMERA_DIST = 40
 local CAMERA_HEIGHT = 20
 
