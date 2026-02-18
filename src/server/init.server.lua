@@ -189,6 +189,14 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 
 		local humanoid = hit.Parent:FindFirstChild("Humanoid")
 		if humanoid then
+			local targetPlayer = game.Players:GetPlayerFromCharacter(hit.Parent)
+			if targetPlayer and player.Team and targetPlayer.Team == player.Team then
+				-- 味方なら何もしない（弾は消える）
+				hasHitHumanoid = true
+				bullet:Destroy()
+				return
+			end
+
 			hasHitHumanoid = true
 
 			-- ★追加: ダメージを与える前に「誰がやったか」をタグ付けする
