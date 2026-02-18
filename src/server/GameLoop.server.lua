@@ -5,19 +5,16 @@ local Workspace = game:GetService("Workspace")
 local Teams = game:GetService("Teams")
 
 -- === 設定 ===
-local INTERMISSION_TIME = 10 -- ロビーでの待機時間
-local WIN_SCORE = 5 -- 勝利キル数
-local ROUND_TIME = 180 -- 1試合の制限時間（秒）
+local INTERMISSION_TIME = 10
+local WIN_SCORE = 5
+local ROUND_TIME = 180
 
--- マップ格納場所
 local MapsFolder = ServerStorage:WaitForChild("Maps")
 local CurrentMap = nil
 
--- 状態管理
 local isMatchActive = false
 local gameMode = "FFA"
 
--- イベント作成
 local messageEvent = ReplicatedStorage:FindFirstChild("GameMessage")
 if not messageEvent then
 	messageEvent = Instance.new("RemoteEvent")
@@ -25,7 +22,6 @@ if not messageEvent then
 	messageEvent.Parent = ReplicatedStorage
 end
 
--- ★追加: カメラ制御用イベント
 local cameraEvent = ReplicatedStorage:FindFirstChild("CameraEvent")
 if not cameraEvent then
 	cameraEvent = Instance.new("RemoteEvent")
@@ -35,7 +31,19 @@ end
 
 -- === ヘルパー関数 ===
 
+-- ★追加: 「PLAY」を押して参加しているプレイヤーだけを取得
+local function getReadyPlayers()
+	local readyPlayers = {}
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player:GetAttribute("IsReady") == true then
+			table.insert(readyPlayers, player)
+		end
+	end
+	return readyPlayers
+end
+
 local function broadcast(text, color)
+	-- 参加している人にだけ送るのが理想だが、観戦者（タイトル画面）にも見えてOKとする
 	messageEvent:FireAllClients(text, color)
 end
 
@@ -43,12 +51,10 @@ local function teleportToLobby()
 	local lobbySpawn = Workspace:FindFirstChild("LobbySpawn")
 
 	if lobbySpawn then
-		for _, player in ipairs(Players:GetPlayers()) do
+		-- 参加者だけをリスポーンさせる
+		for _, player in ipairs(getReadyPlayers()) do
 			player.Team = nil
 			player:LoadCharacter()
-
-			-- ★追加: ロビーに戻ったらカメラをリセットさせる指示を送る（ターゲットを自分に戻すため）
-			-- クライアント側でLoadCharacter時に自動で戻るはずだが、念の為
 		end
 	end
 
@@ -74,7 +80,9 @@ local function teleportToArena()
 		return
 	end
 
-	local players = Players:GetPlayers()
+	-- ★変更: 参加者のみ取得
+	local players = getReadyPlayers()
+
 	if gameMode == "TDM" then
 		for i, player in ipairs(players) do
 			if i % 2 == 1 then
@@ -144,9 +152,14 @@ local function startRound()
 			broadcast("TIME UP!", Color3.new(1, 1, 1))
 			isMatchActive = false
 		end
+
+		-- 参加者が0人になったら強制終了
+		if #getReadyPlayers() == 0 then
+			isMatchActive = false
+		end
 	end
 
-	task.wait(5) -- 勝韻に浸る時間を少し長く
+	task.wait(5)
 	if CurrentMap then
 		CurrentMap:Destroy()
 	end
@@ -155,16 +168,25 @@ end
 
 local function gameLoop()
 	while true do
-		broadcast("Waiting for players...", Color3.new(1, 1, 1))
-		repeat
+		-- ★変更: 参加準備完了者が1人以上いるか待つ
+		local readyCount = #getReadyPlayers()
+		if readyCount == 0 then
+			broadcast("Waiting for players...", Color3.new(1, 1, 1))
 			task.wait(1)
-		until #Players:GetPlayers() >= 1
+		else
+			for i = INTERMISSION_TIME, 1, -1 do
+				broadcast("Next match in " .. i, Color3.new(1, 1, 1))
+				task.wait(1)
+				-- カウントダウン中に全員抜けたら中断
+				if #getReadyPlayers() == 0 then
+					break
+				end
+			end
 
-		for i = INTERMISSION_TIME, 1, -1 do
-			broadcast("Next match in " .. i, Color3.new(1, 1, 1))
-			task.wait(1)
+			if #getReadyPlayers() >= 1 then
+				startRound()
+			end
 		end
-		startRound()
 	end
 end
 
@@ -177,22 +199,19 @@ local function onHumanoidDied(humanoid, player)
 
 	local creatorTag = humanoid:FindFirstChild("creator")
 	if creatorTag and creatorTag.Value then
-		local killer = creatorTag.Value -- Player または Bot(Model)
+		local killer = creatorTag.Value
 
-		-- ★追加: キルカメラ処理
-		-- 倒されたプレイヤー(player)に対して、キラー(killer)を見ろと命令する
 		local killerChar = nil
 		if killer:IsA("Player") then
 			killerChar = killer.Character
 		elseif killer:IsA("Model") then
-			killerChar = killer -- Botの場合
+			killerChar = killer
 		end
 
 		if killerChar then
 			cameraEvent:FireClient(player, "Kill", killerChar)
 		end
 
-		-- 以下、スコア処理（Playerキラーのみ）
 		if killer:IsA("Player") and killer ~= player then
 			if gameMode == "TDM" and killer.Team == player.Team and player.Team ~= nil then
 				return
@@ -219,8 +238,6 @@ Players.PlayerAdded:Connect(function(player)
 		if isMatchActive and newValue >= WIN_SCORE then
 			broadcast(player.Name .. " WINS!", Color3.new(1, 0.5, 0))
 
-			-- ★追加: 勝利カメラ
-			-- 全員に対して、勝者(player.Character)を映せと命令する
 			if player.Character then
 				cameraEvent:FireAllClients("Win", player.Character)
 			end

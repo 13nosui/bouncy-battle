@@ -25,6 +25,7 @@ gui.Name = "GameHUD"
 gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 gui.IgnoreGuiInset = true
+gui.Enabled = false
 
 -- === ヘルパー関数: 枠線付きパネルを作る ===
 local function createPanel(name, size, pos, anchor)

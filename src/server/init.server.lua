@@ -13,11 +13,11 @@ local MAX_AMMO = 10
 local RELOAD_TIME = 2.0
 
 -- === 音源ID ===
-local SOUND_SHOOT = "rbxassetid://1194860475" -- ポンッ
-local SOUND_BOUNCE = "rbxassetid://9117581790" -- ビヨン
-local SOUND_HIT = "rbxassetid://123589129673882" -- ヒット
-local SOUND_EMPTY = "rbxassetid://9117048518" -- カチッ
-local SOUND_RELOAD = "rbxassetid://506273075" -- ジャキッ
+local SOUND_SHOOT = "rbxassetid://1194860475"
+local SOUND_BOUNCE = "rbxassetid://9117581790"
+local SOUND_HIT = "rbxassetid://123589129673882"
+local SOUND_EMPTY = "rbxassetid://9117048518"
+local SOUND_RELOAD = "rbxassetid://506273075"
 
 local cooldowns = {}
 local reloadingStatus = {}
@@ -35,6 +35,7 @@ end
 local fireEvent = getRemote("FireBullet")
 local effectEvent = getRemote("PlayEffect")
 local reloadEvent = getRemote("Reload")
+local readyEvent = getRemote("PlayerReady") -- ★追加: タイトル画面用
 
 local function playSound(soundId, parentPart, volume, pitch)
 	local sound = Instance.new("Sound")
@@ -54,19 +55,16 @@ local function tagHumanoid(humanoid, player)
 	Debris:AddItem(creator_tag, 2)
 end
 
--- ★共通リロード処理
+-- 共通リロード処理
 local function performReload(player)
 	local character = player.Character
 	if not character then
 		return
 	end
-
-	-- すでにリロード中なら無視
 	if reloadingStatus[player.UserId] then
 		return
 	end
 
-	-- 弾が満タンならリロードしない
 	local current = character:GetAttribute("Ammo") or MAX_AMMO
 	if current >= MAX_AMMO then
 		return
@@ -74,8 +72,6 @@ local function performReload(player)
 
 	reloadingStatus[player.UserId] = true
 	character:SetAttribute("IsReloading", true)
-
-	-- リロード開始したら空撃ちフラグはリセット
 	character:SetAttribute("EmptyClicked", false)
 
 	playSound(SOUND_RELOAD, character.Head, 1, 1)
@@ -90,8 +86,10 @@ local function performReload(player)
 end
 
 Players.PlayerAdded:Connect(function(player)
+	-- ★追加: 最初は「準備未完了」状態にする
+	player:SetAttribute("IsReady", false)
+
 	player.CharacterAdded:Connect(function(character)
-		-- 自動回復スクリプトを削除して、自然回復しないようにする
 		local healthScript = character:WaitForChild("Health", 5)
 		if healthScript then
 			healthScript:Destroy()
@@ -100,23 +98,33 @@ Players.PlayerAdded:Connect(function(player)
 		character:SetAttribute("Ammo", MAX_AMMO)
 		character:SetAttribute("MaxAmmo", MAX_AMMO)
 		character:SetAttribute("IsReloading", false)
-		character:SetAttribute("EmptyClicked", false) -- ★追加: 空撃ちフラグ
+		character:SetAttribute("EmptyClicked", false)
 	end)
 end)
 
--- Rキーでのリロード
+-- ★追加: PLAYボタンが押されたら準備完了にする
+readyEvent.OnServerEvent:Connect(function(player)
+	player:SetAttribute("IsReady", true)
+	-- すぐにキャラを再ロードしてロビーに出現させる
+	player:LoadCharacter()
+end)
+
+-- Rキーリロード
 reloadEvent.OnServerEvent:Connect(function(player)
 	performReload(player)
 end)
 
 -- 発射処理
 fireEvent.OnServerEvent:Connect(function(player, mousePosition)
+	-- ★追加: タイトル画面の人は撃てない
+	if not player:GetAttribute("IsReady") then
+		return
+	end
+
 	local character = player.Character
 	if not character then
 		return
 	end
-
-	-- リロード中は撃てない
 	if reloadingStatus[player.UserId] then
 		return
 	end
@@ -128,26 +136,21 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 
 	local currentAmmo = character:GetAttribute("Ammo") or MAX_AMMO
 
-	-- ★弾切れ時の挙動変更
 	if currentAmmo <= 0 then
 		local hasEmptyClicked = character:GetAttribute("EmptyClicked") == true
-
 		if not hasEmptyClicked then
-			-- 1回目: 「カチッ」と鳴らすだけ
 			playSound(SOUND_EMPTY, character.Head, 1, 1)
 			character:SetAttribute("EmptyClicked", true)
-			cooldowns[player.UserId] = now -- 連打防止
+			cooldowns[player.UserId] = now
 		else
-			-- 2回目: リロード開始
 			performReload(player)
 		end
 		return
 	end
 
-	-- 弾がある場合: 発射
 	cooldowns[player.UserId] = now
 	character:SetAttribute("Ammo", currentAmmo - 1)
-	character:SetAttribute("EmptyClicked", false) -- 発射できたら空撃ちフラグは解除
+	character:SetAttribute("EmptyClicked", false)
 
 	local tool = character:FindFirstChildOfClass("Tool")
 	local muzzle = nil
@@ -214,7 +217,6 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 		end
 
 		local isOwner = hit:IsDescendantOf(character)
-
 		if isOwner then
 			if not canHitOwner then
 				return
@@ -225,7 +227,6 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 
 		local humanoid = hit.Parent:FindFirstChild("Humanoid")
 		if humanoid then
-			-- 味方撃ち防止
 			local targetPlayer = game.Players:GetPlayerFromCharacter(hit.Parent)
 			if targetPlayer and player.Team and targetPlayer.Team == player.Team then
 				hasHitHumanoid = true
