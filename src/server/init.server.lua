@@ -13,11 +13,11 @@ local MAX_AMMO = 10
 local RELOAD_TIME = 2.0
 
 -- === 音源ID ===
-local SOUND_SHOOT = "rbxassetid://1194860475" -- ポンッという軽い発射音
-local SOUND_BOUNCE = "rbxassetid://9117581790" -- ビヨン（ゴムの跳ねる音）
-local SOUND_HIT = "rbxassetid://123589129673882" -- ヒット音
-local SOUND_EMPTY = "rbxassetid://9117048518" -- ★カチッ（弾切れ）
-local SOUND_RELOAD = "rbxassetid://506273075" -- ★ジャキッ（リロード音）
+local SOUND_SHOOT = "rbxassetid://1194860475" -- ポンッ
+local SOUND_BOUNCE = "rbxassetid://9117581790" -- ビヨン
+local SOUND_HIT = "rbxassetid://123589129673882" -- ヒット
+local SOUND_EMPTY = "rbxassetid://9117048518" -- カチッ
+local SOUND_RELOAD = "rbxassetid://506273075" -- ジャキッ
 
 local cooldowns = {}
 local reloadingStatus = {}
@@ -46,32 +46,27 @@ local function playSound(soundId, parentPart, volume, pitch)
 	Debris:AddItem(sound, 2)
 end
 
--- ★追加: 誰が攻撃したかを記録するタグ付け関数
 local function tagHumanoid(humanoid, player)
 	local creator_tag = Instance.new("ObjectValue")
 	creator_tag.Value = player
 	creator_tag.Name = "creator"
 	creator_tag.Parent = humanoid
-	Debris:AddItem(creator_tag, 2) -- 2秒後に消える（死ぬ直前の攻撃だけ有効）
+	Debris:AddItem(creator_tag, 2)
 end
 
-Players.PlayerAdded:Connect(function(player)
-	player.CharacterAdded:Connect(function(character)
-		character:SetAttribute("Ammo", MAX_AMMO)
-		character:SetAttribute("MaxAmmo", MAX_AMMO)
-		character:SetAttribute("IsReloading", false)
-	end)
-end)
-
-reloadEvent.OnServerEvent:Connect(function(player)
+-- ★共通リロード処理
+local function performReload(player)
 	local character = player.Character
 	if not character then
 		return
 	end
+
+	-- すでにリロード中なら無視
 	if reloadingStatus[player.UserId] then
 		return
 	end
 
+	-- 弾が満タンならリロードしない
 	local current = character:GetAttribute("Ammo") or MAX_AMMO
 	if current >= MAX_AMMO then
 		return
@@ -79,6 +74,10 @@ reloadEvent.OnServerEvent:Connect(function(player)
 
 	reloadingStatus[player.UserId] = true
 	character:SetAttribute("IsReloading", true)
+
+	-- リロード開始したら空撃ちフラグはリセット
+	character:SetAttribute("EmptyClicked", false)
+
 	playSound(SOUND_RELOAD, character.Head, 1, 1)
 
 	task.wait(RELOAD_TIME)
@@ -88,13 +87,36 @@ reloadEvent.OnServerEvent:Connect(function(player)
 		character:SetAttribute("IsReloading", false)
 	end
 	reloadingStatus[player.UserId] = false
+end
+
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function(character)
+		-- 自動回復スクリプトを削除して、自然回復しないようにする
+		local healthScript = character:WaitForChild("Health", 5)
+		if healthScript then
+			healthScript:Destroy()
+		end
+
+		character:SetAttribute("Ammo", MAX_AMMO)
+		character:SetAttribute("MaxAmmo", MAX_AMMO)
+		character:SetAttribute("IsReloading", false)
+		character:SetAttribute("EmptyClicked", false) -- ★追加: 空撃ちフラグ
+	end)
 end)
 
+-- Rキーでのリロード
+reloadEvent.OnServerEvent:Connect(function(player)
+	performReload(player)
+end)
+
+-- 発射処理
 fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	local character = player.Character
 	if not character then
 		return
 	end
+
+	-- リロード中は撃てない
 	if reloadingStatus[player.UserId] then
 		return
 	end
@@ -103,15 +125,29 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 	if cooldowns[player.UserId] and (now - cooldowns[player.UserId] < FIRE_COOLDOWN) then
 		return
 	end
-	cooldowns[player.UserId] = now
 
 	local currentAmmo = character:GetAttribute("Ammo") or MAX_AMMO
+
+	-- ★弾切れ時の挙動変更
 	if currentAmmo <= 0 then
-		playSound(SOUND_EMPTY, character.Head, 1, 1)
+		local hasEmptyClicked = character:GetAttribute("EmptyClicked") == true
+
+		if not hasEmptyClicked then
+			-- 1回目: 「カチッ」と鳴らすだけ
+			playSound(SOUND_EMPTY, character.Head, 1, 1)
+			character:SetAttribute("EmptyClicked", true)
+			cooldowns[player.UserId] = now -- 連打防止
+		else
+			-- 2回目: リロード開始
+			performReload(player)
+		end
 		return
 	end
 
+	-- 弾がある場合: 発射
+	cooldowns[player.UserId] = now
 	character:SetAttribute("Ammo", currentAmmo - 1)
+	character:SetAttribute("EmptyClicked", false) -- 発射できたら空撃ちフラグは解除
 
 	local tool = character:FindFirstChildOfClass("Tool")
 	local muzzle = nil
@@ -189,19 +225,16 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 
 		local humanoid = hit.Parent:FindFirstChild("Humanoid")
 		if humanoid then
+			-- 味方撃ち防止
 			local targetPlayer = game.Players:GetPlayerFromCharacter(hit.Parent)
 			if targetPlayer and player.Team and targetPlayer.Team == player.Team then
-				-- 味方なら何もしない（弾は消える）
 				hasHitHumanoid = true
 				bullet:Destroy()
 				return
 			end
 
 			hasHitHumanoid = true
-
-			-- ★追加: ダメージを与える前に「誰がやったか」をタグ付けする
 			tagHumanoid(humanoid, player)
-
 			humanoid:TakeDamage(DAMAGE)
 			playSound(SOUND_HIT, hit, 1.0, 1.0)
 			bullet:Destroy()
