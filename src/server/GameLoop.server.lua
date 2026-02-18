@@ -15,6 +15,9 @@ local CurrentMap = nil
 local isMatchActive = false
 local gameMode = "FFA"
 
+-- 参加受付ゾーンの名前
+local JOIN_ZONE_NAME = "JoinZone"
+
 local messageEvent = ReplicatedStorage:FindFirstChild("GameMessage")
 if not messageEvent then
 	messageEvent = Instance.new("RemoteEvent")
@@ -31,30 +34,54 @@ end
 
 -- === ヘルパー関数 ===
 
--- ★追加: 「PLAY」を押して参加しているプレイヤーだけを取得
+-- ★変更: 「JoinZone」をフォルダの中まで探すように修正
 local function getReadyPlayers()
+	-- 第2引数に true を入れると、Workspaceの中にあるフォルダやモデルの中も探してくれます
+	local joinZone = Workspace:FindFirstChild(JOIN_ZONE_NAME, true)
+
+	if not joinZone then
+		warn("JoinZone not found anywhere in Workspace!")
+		return {}
+	end
+
+	-- OverlapParams: 判定の設定
+	local overlapParams = OverlapParams.new()
+	overlapParams.FilterDescendantsInstances = { joinZone }
+	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
+
+	-- ゾーン内のパーツを取得
+	local partsInZone = Workspace:GetPartsInPart(joinZone, overlapParams)
 	local readyPlayers = {}
-	for _, player in ipairs(Players:GetPlayers()) do
-		if player:GetAttribute("IsReady") == true then
-			table.insert(readyPlayers, player)
+	local foundUserIds = {} -- 重複防止用
+
+	for _, part in ipairs(partsInZone) do
+		local character = part.Parent
+		if character and character:FindFirstChild("Humanoid") then
+			local player = Players:GetPlayerFromCharacter(character)
+			-- プレイヤーが存在し、まだリストに入っておらず、かつ「PLAY」を押してロビーにいる人
+			if player and not foundUserIds[player.UserId] and player:GetAttribute("IsReady") then
+				foundUserIds[player.UserId] = true
+				table.insert(readyPlayers, player)
+			end
 		end
 	end
+
 	return readyPlayers
 end
 
 local function broadcast(text, color)
-	-- 参加している人にだけ送るのが理想だが、観戦者（タイトル画面）にも見えてOKとする
 	messageEvent:FireAllClients(text, color)
 end
 
 local function teleportToLobby()
-	local lobbySpawn = Workspace:FindFirstChild("LobbySpawn")
+	local lobbySpawn = Workspace:FindFirstChild("LobbySpawn", true) -- ここも念の為 true にしておきます
 
 	if lobbySpawn then
-		-- 参加者だけをリスポーンさせる
-		for _, player in ipairs(getReadyPlayers()) do
-			player.Team = nil
-			player:LoadCharacter()
+		for _, player in ipairs(Players:GetPlayers()) do
+			if player.Team ~= nil then
+				player.Team = nil
+				player:LoadCharacter()
+			end
 		end
 	end
 
@@ -65,7 +92,7 @@ local function teleportToLobby()
 	end
 end
 
-local function teleportToArena()
+local function teleportToArena(players)
 	local spawns = {}
 	if CurrentMap then
 		for _, child in ipairs(CurrentMap:GetChildren()) do
@@ -79,9 +106,6 @@ local function teleportToArena()
 		warn("No spawns found in map!")
 		return
 	end
-
-	-- ★変更: 参加者のみ取得
-	local players = getReadyPlayers()
 
 	if gameMode == "TDM" then
 		for i, player in ipairs(players) do
@@ -126,7 +150,7 @@ end
 
 -- === ゲームループ ===
 
-local function startRound()
+local function startRound(participants)
 	isMatchActive = true
 	resetScores()
 
@@ -141,7 +165,8 @@ local function startRound()
 	task.wait(3)
 
 	loadMap("Map_City")
-	teleportToArena()
+
+	teleportToArena(participants)
 
 	broadcast("START!", Color3.new(0, 1, 0))
 
@@ -153,9 +178,11 @@ local function startRound()
 			isMatchActive = false
 		end
 
-		-- 参加者が0人になったら強制終了
-		if #getReadyPlayers() == 0 then
-			isMatchActive = false
+		local activePlayers = 0
+		for _, p in ipairs(Players:GetPlayers()) do
+			if p.Team ~= nil then
+				activePlayers += 1
+			end
 		end
 	end
 
@@ -168,23 +195,26 @@ end
 
 local function gameLoop()
 	while true do
-		-- ★変更: 参加準備完了者が1人以上いるか待つ
-		local readyCount = #getReadyPlayers()
+		local readyPlayers = getReadyPlayers()
+		local readyCount = #readyPlayers
+
 		if readyCount == 0 then
-			broadcast("Waiting for players...", Color3.new(1, 1, 1))
+			broadcast("Stand in the ZONE to join!", Color3.new(0.5, 1, 1))
 			task.wait(1)
 		else
 			for i = INTERMISSION_TIME, 1, -1 do
-				broadcast("Next match in " .. i, Color3.new(1, 1, 1))
+				broadcast("Match starts in " .. i .. " (" .. readyCount .. " players)", Color3.new(1, 1, 1))
 				task.wait(1)
-				-- カウントダウン中に全員抜けたら中断
-				if #getReadyPlayers() == 0 then
+
+				readyPlayers = getReadyPlayers()
+				readyCount = #readyPlayers
+				if readyCount == 0 then
 					break
 				end
 			end
 
-			if #getReadyPlayers() >= 1 then
-				startRound()
+			if readyCount >= 1 then
+				startRound(readyPlayers)
 			end
 		end
 	end
