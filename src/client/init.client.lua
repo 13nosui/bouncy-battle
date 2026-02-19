@@ -98,8 +98,7 @@ local function onEquip()
 	UserInputService.MouseIconEnabled = false
 	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
 
-	-- ★モバイル対応: ボタンを作成してバインド
-	-- 第3引数の true が「モバイルボタンを作る」という意味
+	-- ★モバイルボタン作成
 	ContextActionService:BindAction(
 		"FireAction",
 		handleFire,
@@ -109,17 +108,19 @@ local function onEquip()
 	)
 	ContextActionService:BindAction("ReloadAction", handleReload, true, Enum.KeyCode.R, Enum.KeyCode.ButtonX)
 
-	-- ボタンの見た目調整 (位置や画像)
+	-- ボタン装飾
 	local fireBtn = ContextActionService:GetButton("FireAction")
 	if fireBtn then
 		ContextActionService:SetTitle("FireAction", "FIRE")
-		ContextActionService:SetPosition("FireAction", UDim2.new(0.7, 0, 0.6, 0)) -- 右手親指あたり
+		-- 右手親指のホームポジション (画面右端から20%, 上から50%)
+		ContextActionService:SetPosition("FireAction", UDim2.new(0.80, 0, 0.50, 0))
 	end
 
 	local reloadBtn = ContextActionService:GetButton("ReloadAction")
 	if reloadBtn then
 		ContextActionService:SetTitle("ReloadAction", "RLD")
-		ContextActionService:SetPosition("ReloadAction", UDim2.new(0.6, 0, 0.8, 0)) -- 少し下
+		-- FIREボタンの左下
+		ContextActionService:SetPosition("ReloadAction", UDim2.new(0.65, 0, 0.70, 0))
 	end
 end
 

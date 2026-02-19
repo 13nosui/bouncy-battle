@@ -150,7 +150,7 @@ healthText.Parent = barBg
 -- ▼▼ 3. 弾数表示 (右下) ▼▼
 -- 右下(1, 1)を基準に配置
 local ammoContainer =
-	createPanel("AmmoContainer", UDim2.new(0.15, 0, 0, 80), UDim2.new(0.98, 0, 0.95, 0), Vector2.new(1, 1))
+	createPanel("AmmoContainer", UDim2.new(0.15, 0, 0, 80), UDim2.new(0.98, 0, 0.15, 0), Vector2.new(1, 0))
 local ammoSizeConstraint = Instance.new("UISizeConstraint")
 ammoSizeConstraint.MinSize = Vector2.new(140, 80)
 ammoSizeConstraint.Parent = ammoContainer

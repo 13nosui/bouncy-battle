@@ -155,25 +155,23 @@ local function handleCrouch(actionName, inputState, inputObject)
 	end
 end
 
--- 初期設定
+-- 初期設定 (すぐに実行してボタンを表示させる)
 local function setupControls()
-	-- PCキー + モバイルボタン(true) をバインド
 	ContextActionService:BindAction("SprintAction", handleSprint, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
 	ContextActionService:BindAction("CrouchAction", handleCrouch, true, Enum.KeyCode.C, Enum.KeyCode.ButtonB)
 
-	-- ボタン装飾
 	local sprintBtn = ContextActionService:GetButton("SprintAction")
 	if sprintBtn then
 		ContextActionService:SetTitle("SprintAction", "DASH")
-		-- 左手親指の上あたり
-		ContextActionService:SetPosition("SprintAction", UDim2.new(0.15, 0, 0.6, 0))
+		-- ★左手親指用: ジョイスティック(左下)の少し上
+		ContextActionService:SetPosition("SprintAction", UDim2.new(0.15, 0, 0.40, 0))
 	end
 
 	local crouchBtn = ContextActionService:GetButton("CrouchAction")
 	if crouchBtn then
 		ContextActionService:SetTitle("CrouchAction", "SLIDE")
-		-- 右手親指、リロードの横あたり
-		ContextActionService:SetPosition("CrouchAction", UDim2.new(0.85, 0, 0.7, 0))
+		-- ★右手親指用: FIREボタンの上
+		ContextActionService:SetPosition("CrouchAction", UDim2.new(0.80, 0, 0.30, 0))
 	end
 end
 
