@@ -112,15 +112,17 @@ local function onEquip()
 	local fireBtn = ContextActionService:GetButton("FireAction")
 	if fireBtn then
 		ContextActionService:SetTitle("FireAction", "FIRE")
-		-- 右手親指のホームポジション (画面右端から20%, 上から50%)
-		ContextActionService:SetPosition("FireAction", UDim2.new(0.80, 0, 0.50, 0))
+		-- ジャンプボタン(右下)の左隣に配置
+		-- 位置: 右端から25%, 上から65%
+		ContextActionService:SetPosition("FireAction", UDim2.new(0.75, 0, 0.65, 0))
 	end
 
 	local reloadBtn = ContextActionService:GetButton("ReloadAction")
 	if reloadBtn then
 		ContextActionService:SetTitle("ReloadAction", "RLD")
-		-- FIREボタンの左下
-		ContextActionService:SetPosition("ReloadAction", UDim2.new(0.65, 0, 0.70, 0))
+		-- FIREボタンのさらに左隣に配置
+		-- 位置: 右端から40%, 上から65%
+		ContextActionService:SetPosition("ReloadAction", UDim2.new(0.60, 0, 0.65, 0))
 	end
 end
 

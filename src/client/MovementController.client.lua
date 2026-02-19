@@ -163,15 +163,17 @@ local function setupControls()
 	local sprintBtn = ContextActionService:GetButton("SprintAction")
 	if sprintBtn then
 		ContextActionService:SetTitle("SprintAction", "DASH")
-		-- ★左手親指用: ジョイスティック(左下)の少し上
-		ContextActionService:SetPosition("SprintAction", UDim2.new(0.15, 0, 0.40, 0))
+		-- ★左手親指用: ジョイスティック(左下)の真上
+		-- 位置: 左端から15%, 上から45%
+		ContextActionService:SetPosition("SprintAction", UDim2.new(0.15, 0, 0.45, 0))
 	end
 
 	local crouchBtn = ContextActionService:GetButton("CrouchAction")
 	if crouchBtn then
 		ContextActionService:SetTitle("CrouchAction", "SLIDE")
-		-- ★右手親指用: FIREボタンの上
-		ContextActionService:SetPosition("CrouchAction", UDim2.new(0.80, 0, 0.30, 0))
+		-- ★右手親指用: ジャンプボタン(右下)の真上
+		-- 位置: 右端から10%, 上から45%
+		ContextActionService:SetPosition("CrouchAction", UDim2.new(0.85, 0, 0.45, 0))
 	end
 end
 

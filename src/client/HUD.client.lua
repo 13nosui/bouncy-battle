@@ -89,7 +89,7 @@ scoreLabel.Parent = scoreFrame
 -- ▼▼ 2. HPバー (左下) ▼▼
 -- 左下(0, 1)を基準に配置。位置は少し浮かせる
 local healthContainer =
-	createPanel("HealthContainer", UDim2.new(0.25, 0, 0, 50), UDim2.new(0.02, 0, 0.95, 0), Vector2.new(0, 1))
+	createPanel("HealthContainer", UDim2.new(0, 320, 0, 50), UDim2.new(0, 20, 0, 15), Vector2.new(0, 0))
 local hpSizeConstraint = Instance.new("UISizeConstraint")
 hpSizeConstraint.MinSize = Vector2.new(200, 50) -- スマホでもこれ以上小さくしない
 hpSizeConstraint.Parent = healthContainer
