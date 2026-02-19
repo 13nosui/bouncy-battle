@@ -1,6 +1,6 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
-local ContextActionService = game:GetService("ContextActionService") -- ★追加
+local ContextActionService = game:GetService("ContextActionService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
@@ -54,7 +54,6 @@ local function updateCameraTilt()
 end
 
 -- === 2. アクション処理 ===
-
 local function updateMovementState()
 	if isSliding then
 		return
@@ -110,9 +109,9 @@ local function startSlide()
 		end
 		isSliding = false
 
-		if isSprinting then -- まだダッシュボタン押してたら
+		if isSprinting then
 			isCrouching = false
-		elseif isCrouching then -- しゃがみボタン押してたら
+		elseif isCrouching then
 			isSprinting = false
 		else
 			isSprinting = false
@@ -123,8 +122,6 @@ local function startSlide()
 end
 
 -- === 3. 入力バインド (PC & Mobile) ===
-
--- ダッシュ処理
 local function handleSprint(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
 		isSprinting = true
@@ -138,7 +135,6 @@ local function handleSprint(actionName, inputState, inputObject)
 	end
 end
 
--- しゃがみ/スライド処理
 local function handleCrouch(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
 		if isSprinting then
@@ -155,45 +151,24 @@ local function handleCrouch(actionName, inputState, inputObject)
 	end
 end
 
--- 初期設定 (すぐに実行してボタンを表示させる)
-local function setupControls()
-	ContextActionService:BindAction("SprintAction", handleSprint, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
-	ContextActionService:BindAction("CrouchAction", handleCrouch, true, Enum.KeyCode.C, Enum.KeyCode.ButtonB)
-
-	local sprintBtn = ContextActionService:GetButton("SprintAction")
-	if sprintBtn then
-		ContextActionService:SetTitle("SprintAction", "DASH")
-		-- ★左手親指用: ジョイスティック(左下)の真上
-		-- 位置: 左端から15%, 上から45%
-		ContextActionService:SetPosition("SprintAction", UDim2.new(0.15, 0, 0.45, 0))
-	end
-
-	local crouchBtn = ContextActionService:GetButton("CrouchAction")
-	if crouchBtn then
-		ContextActionService:SetTitle("CrouchAction", "SLIDE")
-		-- ★右手親指用: ジャンプボタン(右下)の真上
-		-- 位置: 右端から10%, 上から45%
-		ContextActionService:SetPosition("CrouchAction", UDim2.new(0.85, 0, 0.45, 0))
-	end
-end
-
-setupControls()
+-- ★変更: 起動時に1回だけバインドし、二度とUnbindしない
+ContextActionService:BindAction("SprintAction", handleSprint, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
+ContextActionService:BindAction("CrouchAction", handleCrouch, true, Enum.KeyCode.C, Enum.KeyCode.ButtonB)
+ContextActionService:SetTitle("SprintAction", "DASH")
+ContextActionService:SetTitle("CrouchAction", "SLIDE")
 
 -- === その他処理 ===
-
 player.CharacterAdded:Connect(function(newChar)
 	character = newChar
 	humanoid = newChar:WaitForChild("Humanoid")
 	rootPart = newChar:WaitForChild("HumanoidRootPart")
-	setupControls() -- キャラ復活時に再バインド
+	-- (ここにあったボタン再生成処理を完全に削除)
 end)
 
 RunService.RenderStepped:Connect(function()
 	updateCameraTilt()
 end)
 
--- 壁ジャンプ (PCスペースキー用)
--- モバイルのジャンプボタンはRoblox標準のものが右下にあります
 UserInputService.JumpRequest:Connect(function()
 	local now = tick()
 	if now - lastWallJumpTime < WALL_JUMP_COOLDOWN then
@@ -225,5 +200,3 @@ UserInputService.JumpRequest:Connect(function()
 		game:GetService("Debris"):AddItem(sound, 1)
 	end
 end)
-
-print("Client: Mobile Ready Movement")

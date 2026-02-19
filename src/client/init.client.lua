@@ -1,7 +1,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
-local ContextActionService = game:GetService("ContextActionService") -- ★追加
+local ContextActionService = game:GetService("ContextActionService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
@@ -9,16 +9,13 @@ local Debris = game:GetService("Debris")
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
--- RemoteEvents
 local fireEvent = ReplicatedStorage:WaitForChild("FireBullet")
 local effectEvent = ReplicatedStorage:WaitForChild("PlayEffect")
 local reloadEvent = ReplicatedStorage:WaitForChild("Reload")
 
--- === 設定 ===
 local CROSSHAIR_IMAGE = "rbxassetid://128000667256203"
 local CROSSHAIR_SIZE = 80
 
--- === 1. 照準GUI ===
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "CrosshairGui"
 screenGui.Parent = player:WaitForChild("PlayerGui")
@@ -33,10 +30,8 @@ crosshair.AnchorPoint = Vector2.new(0.5, 0.5)
 crosshair.Position = UDim2.new(0.5, 0, 0.5, 0)
 crosshair.Parent = screenGui
 
--- === 2. アクション関数 ===
 local isEquipped = false
 
--- 発射処理
 local function handleFire(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin and isEquipped then
 		local targetPos = camera.CFrame.Position + (camera.CFrame.LookVector * 1000)
@@ -54,7 +49,6 @@ local function handleFire(actionName, inputState, inputObject)
 	return Enum.ContextActionResult.Pass
 end
 
--- リロード処理
 local function handleReload(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin and isEquipped then
 		reloadEvent:FireServer()
@@ -63,7 +57,6 @@ local function handleReload(actionName, inputState, inputObject)
 	return Enum.ContextActionResult.Pass
 end
 
--- 装備切替処理 (モバイル用ボタンは作らず、既存のキーのみ)
 local function handleToggle(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
 		local character = player.Character
@@ -90,40 +83,19 @@ local function handleToggle(actionName, inputState, inputObject)
 	end
 end
 
--- === 3. 装備監視とボタン登録 ===
+-- ★変更: 起動時に最初からバインドしておく（二度と消さない）
+ContextActionService:BindAction("FireAction", handleFire, true, Enum.UserInputType.MouseButton1, Enum.KeyCode.ButtonR2)
+ContextActionService:BindAction("ReloadAction", handleReload, true, Enum.KeyCode.R, Enum.KeyCode.ButtonX)
+ContextActionService:SetTitle("FireAction", "FIRE")
+ContextActionService:SetTitle("ReloadAction", "RLD")
+ContextActionService:BindAction("ToggleWeapon", handleToggle, false, Enum.KeyCode.ButtonY)
 
 local function onEquip()
 	isEquipped = true
 	screenGui.Enabled = true
 	UserInputService.MouseIconEnabled = false
 	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
-
-	-- ★モバイルボタン作成
-	ContextActionService:BindAction(
-		"FireAction",
-		handleFire,
-		true,
-		Enum.UserInputType.MouseButton1,
-		Enum.KeyCode.ButtonR2
-	)
-	ContextActionService:BindAction("ReloadAction", handleReload, true, Enum.KeyCode.R, Enum.KeyCode.ButtonX)
-
-	-- ボタン装飾
-	local fireBtn = ContextActionService:GetButton("FireAction")
-	if fireBtn then
-		ContextActionService:SetTitle("FireAction", "FIRE")
-		-- ジャンプボタン(右下)の左隣に配置
-		-- 位置: 右端から25%, 上から65%
-		ContextActionService:SetPosition("FireAction", UDim2.new(0.75, 0, 0.65, 0))
-	end
-
-	local reloadBtn = ContextActionService:GetButton("ReloadAction")
-	if reloadBtn then
-		ContextActionService:SetTitle("ReloadAction", "RLD")
-		-- FIREボタンのさらに左隣に配置
-		-- 位置: 右端から40%, 上から65%
-		ContextActionService:SetPosition("ReloadAction", UDim2.new(0.60, 0, 0.65, 0))
-	end
+	-- (ここにあったボタンのBindを削除)
 end
 
 local function onUnequip()
@@ -131,14 +103,8 @@ local function onUnequip()
 	screenGui.Enabled = false
 	UserInputService.MouseIconEnabled = true
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-
-	-- 装備解除したらボタンも消す
-	ContextActionService:UnbindAction("FireAction")
-	ContextActionService:UnbindAction("ReloadAction")
+	-- (ここにあったボタンのUnbindを削除)
 end
-
--- 装備切替のバインド (常時有効)
-ContextActionService:BindAction("ToggleWeapon", handleToggle, false, Enum.KeyCode.ButtonY)
 
 player.CharacterAdded:Connect(function(char)
 	char.ChildAdded:Connect(function(child)
@@ -166,7 +132,6 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- === 4. エフェクト ===
 effectEvent.OnClientEvent:Connect(function(effectType, data)
 	if effectType == "Muzzle" then
 		local toolHandle = data
@@ -194,11 +159,10 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 		flash.Parent = workspace
 
 		local tweenInfo = TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local goal = { Size = Vector3.new(3.5, 3.5, 3.5), Transparency = 1 }
-		local tween = TweenService:Create(flash, tweenInfo, goal)
+		local tween = TweenService:Create(flash, tweenInfo, { Size = Vector3.new(3.5, 3.5, 3.5), Transparency = 1 })
 		tween:Play()
 		Debris:AddItem(flash, 0.1)
 	end
 end)
 
-print("Client: Mobile Ready Gun System")
+print("Client: Mobile Ready Gun System (No Unbind)")

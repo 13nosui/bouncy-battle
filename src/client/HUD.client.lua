@@ -3,6 +3,7 @@ local StarterGui = game:GetService("StarterGui")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService") -- ★追加
 
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
@@ -33,24 +34,23 @@ gui.Enabled = false
 local uiScale = Instance.new("UIScale")
 uiScale.Parent = gui
 
--- 画面サイズ監視してスケール調整
 local function updateScale()
 	local viewportSize = camera.ViewportSize
-	-- 基準をPC画面(幅1920)とし、スマホ(幅800程度)なら小さくする
-	-- ただし小さくなりすぎないように最小値を設ける
 	local scale = math.clamp(viewportSize.X / 1600, 0.7, 1.2)
 	uiScale.Scale = scale
 end
 camera:GetPropertyChangedSignal("ViewportSize"):Connect(updateScale)
 updateScale()
 
+-- ★PCかスマホか判定
+local isMobile = UserInputService.TouchEnabled
+
 -- === ヘルパー関数: 枠線付きパネルを作る ===
-local function createPanel(name, size, pos, anchor)
+local function createPanel(name, size)
 	local frame = Instance.new("Frame")
 	frame.Name = name
 	frame.Size = size
-	frame.Position = pos
-	frame.AnchorPoint = anchor or Vector2.new(0, 0)
+	-- PositionとAnchorPointは後で設定する
 	frame.BackgroundColor3 = Color3.new(0, 0, 0)
 	frame.BackgroundTransparency = 0.4
 	frame.BorderSizePixel = 0
@@ -70,9 +70,10 @@ local function createPanel(name, size, pos, anchor)
 end
 
 -- ▼▼ 1. スコア表示 (上部中央) ▼▼
--- 幅は画面の20%くらい、高さは40px固定
-local scoreFrame = createPanel("ScoreFrame", UDim2.new(0.2, 0, 0, 40), UDim2.new(0.5, 0, 0, 10), Vector2.new(0.5, 0))
--- 最小幅保証
+local scoreFrame = createPanel("ScoreFrame", UDim2.new(0.2, 0, 0, 40))
+scoreFrame.Position = UDim2.new(0.5, 0, 0, 10)
+scoreFrame.AnchorPoint = Vector2.new(0.5, 0)
+
 local sizeConstraint = Instance.new("UISizeConstraint")
 sizeConstraint.MinSize = Vector2.new(150, 40)
 sizeConstraint.Parent = scoreFrame
@@ -86,13 +87,21 @@ scoreLabel.Font = FONT
 scoreLabel.TextSize = 22
 scoreLabel.Parent = scoreFrame
 
--- ▼▼ 2. HPバー (左下) ▼▼
--- 左下(0, 1)を基準に配置。位置は少し浮かせる
-local healthContainer =
-	createPanel("HealthContainer", UDim2.new(0, 320, 0, 50), UDim2.new(0, 20, 0, 15), Vector2.new(0, 0))
+-- ▼▼ 2. HPバー ▼▼
+local healthContainer = createPanel("HealthContainer", UDim2.new(0.25, 0, 0, 50))
 local hpSizeConstraint = Instance.new("UISizeConstraint")
-hpSizeConstraint.MinSize = Vector2.new(200, 50) -- スマホでもこれ以上小さくしない
+hpSizeConstraint.MinSize = Vector2.new(200, 50)
 hpSizeConstraint.Parent = healthContainer
+
+if isMobile then
+	-- 【スマホ】左上（ただしメニューボタンを避けるためYを多めに取る）
+	healthContainer.AnchorPoint = Vector2.new(0, 0)
+	healthContainer.Position = UDim2.new(0.02, 0, 0.15, 0) -- 上から15%の位置
+else
+	-- 【PC】左下
+	healthContainer.AnchorPoint = Vector2.new(0, 1)
+	healthContainer.Position = UDim2.new(0.02, 0, 0.95, 0)
+end
 
 local hpLabel = Instance.new("TextLabel")
 hpLabel.Size = UDim2.new(0, 50, 1, 0)
@@ -147,13 +156,21 @@ healthText.TextSize = 18
 healthText.TextXAlignment = Enum.TextXAlignment.Right
 healthText.Parent = barBg
 
--- ▼▼ 3. 弾数表示 (右下) ▼▼
--- 右下(1, 1)を基準に配置
-local ammoContainer =
-	createPanel("AmmoContainer", UDim2.new(0.15, 0, 0, 80), UDim2.new(0.98, 0, 0.15, 0), Vector2.new(1, 0))
+-- ▼▼ 3. 弾数表示 ▼▼
+local ammoContainer = createPanel("AmmoContainer", UDim2.new(0.15, 0, 0, 80))
 local ammoSizeConstraint = Instance.new("UISizeConstraint")
 ammoSizeConstraint.MinSize = Vector2.new(140, 80)
 ammoSizeConstraint.Parent = ammoContainer
+
+if isMobile then
+	-- 【スマホ】右上（HPバーと高さを合わせる）
+	ammoContainer.AnchorPoint = Vector2.new(1, 0)
+	ammoContainer.Position = UDim2.new(0.98, 0, 0.15, 0) -- HPと同じく上から15%
+else
+	-- 【PC】右下
+	ammoContainer.AnchorPoint = Vector2.new(1, 1)
+	ammoContainer.Position = UDim2.new(0.98, 0, 0.95, 0)
+end
 
 local currentAmmoText = Instance.new("TextLabel")
 currentAmmoText.Name = "Current"
@@ -193,7 +210,7 @@ labelText.Parent = ammoContainer
 local messageLabel = Instance.new("TextLabel")
 messageLabel.Name = "MessageLabel"
 messageLabel.Size = UDim2.new(1, 0, 0, 100)
-messageLabel.Position = UDim2.new(0, 0, 0.3, 0) -- HPバーと被らないように少し上へ
+messageLabel.Position = UDim2.new(0, 0, 0.3, 0)
 messageLabel.BackgroundTransparency = 1
 messageLabel.Text = ""
 messageLabel.TextColor3 = Color3.new(1, 1, 1)
