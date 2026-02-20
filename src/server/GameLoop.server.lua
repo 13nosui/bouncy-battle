@@ -15,8 +15,12 @@ local CurrentMap = nil
 local isMatchActive = false
 local gameMode = "FFA"
 
--- 参加受付ゾーンの名前
-local JOIN_ZONE_NAME = "JoinZone"
+-- ★変更1: 3つのゾーンとその設定を定義
+local ZONES = {
+	{ name = "JoinZone_FFA", mode = "FFA", color = Color3.new(1, 0.4, 0.4) }, -- 赤系
+	{ name = "JoinZone_TDM", mode = "TDM", color = Color3.new(0.4, 0.6, 1) }, -- 青系
+	{ name = "JoinZone_BUILD", mode = "BUILD", color = Color3.new(1, 0.9, 0.2) }, -- 黄系
+}
 
 local messageEvent = ReplicatedStorage:FindFirstChild("GameMessage")
 if not messageEvent then
@@ -34,39 +38,49 @@ end
 
 -- === ヘルパー関数 ===
 
--- ★変更: 「JoinZone」をフォルダの中まで探すように修正
-local function getReadyPlayers()
-	-- 第2引数に true を入れると、Workspaceの中にあるフォルダやモデルの中も探してくれます
-	local joinZone = Workspace:FindFirstChild(JOIN_ZONE_NAME, true)
-
-	if not joinZone then
-		warn("JoinZone not found anywhere in Workspace!")
-		return {}
-	end
-
-	-- OverlapParams: 判定の設定
+-- ★変更2: 指定した1つのゾーンにいるプレイヤーを取得する関数
+local function getPlayersInZone(joinZone)
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterDescendantsInstances = { joinZone }
 	overlapParams.FilterType = Enum.RaycastFilterType.Exclude
 
-	-- ゾーン内のパーツを取得
 	local partsInZone = Workspace:GetPartsInPart(joinZone, overlapParams)
 	local readyPlayers = {}
-	local foundUserIds = {} -- 重複防止用
+	local foundUserIds = {}
 
 	for _, part in ipairs(partsInZone) do
 		local character = part.Parent
 		if character and character:FindFirstChild("Humanoid") then
 			local player = Players:GetPlayerFromCharacter(character)
-			-- プレイヤーが存在し、まだリストに入っておらず、かつ「PLAY」を押してロビーにいる人
 			if player and not foundUserIds[player.UserId] and player:GetAttribute("IsReady") then
 				foundUserIds[player.UserId] = true
 				table.insert(readyPlayers, player)
 			end
 		end
 	end
-
 	return readyPlayers
+end
+
+-- ★変更3: 全ゾーンを確認し、一番人が多いモードを決定する関数
+local function getModeAndPlayers()
+	local bestMode = nil
+	local bestPlayers = {}
+	local bestColor = Color3.new(1, 1, 1)
+
+	for _, zoneInfo in ipairs(ZONES) do
+		local joinZone = Workspace:FindFirstChild(zoneInfo.name, true)
+		if joinZone then
+			local playersInZone = getPlayersInZone(joinZone)
+			-- より多くの人がいるゾーンが勝つ
+			if #playersInZone > #bestPlayers then
+				bestPlayers = playersInZone
+				bestMode = zoneInfo.mode
+				bestColor = zoneInfo.color
+			end
+		end
+	end
+
+	return bestMode, bestPlayers, bestColor
 end
 
 local function broadcast(text, color)
@@ -74,7 +88,7 @@ local function broadcast(text, color)
 end
 
 local function teleportToLobby()
-	local lobbySpawn = Workspace:FindFirstChild("LobbySpawn", true) -- ここも念の為 true にしておきます
+	local lobbySpawn = Workspace:FindFirstChild("LobbySpawn", true)
 
 	if lobbySpawn then
 		for _, player in ipairs(Players:GetPlayers()) do
@@ -150,16 +164,18 @@ end
 
 -- === ゲームループ ===
 
-local function startRound(participants)
+-- ★変更4: 引数でモードを受け取り、それに応じてゲームを開始する
+local function startRound(mode, participants)
 	isMatchActive = true
+	gameMode = mode
 	resetScores()
 
-	if math.random() > 0.5 then
-		gameMode = "FFA"
-		broadcast("MODE: FREE FOR ALL", Color3.new(1, 1, 0))
-	else
-		gameMode = "TDM"
-		broadcast("MODE: TEAM DEATHMATCH", Color3.new(0, 1, 1))
+	if gameMode == "FFA" then
+		broadcast("MODE: FREE FOR ALL", Color3.new(1, 0.4, 0.4))
+	elseif gameMode == "TDM" then
+		broadcast("MODE: TEAM DEATHMATCH", Color3.new(0.4, 0.6, 1))
+	elseif gameMode == "BUILD" then
+		broadcast("MODE: BUILD BATTLE", Color3.new(1, 0.9, 0.2))
 	end
 
 	task.wait(3)
@@ -177,13 +193,6 @@ local function startRound(participants)
 			broadcast("TIME UP!", Color3.new(1, 1, 1))
 			isMatchActive = false
 		end
-
-		local activePlayers = 0
-		for _, p in ipairs(Players:GetPlayers()) do
-			if p.Team ~= nil then
-				activePlayers += 1
-			end
-		end
 	end
 
 	task.wait(5)
@@ -195,26 +204,32 @@ end
 
 local function gameLoop()
 	while true do
-		local readyPlayers = getReadyPlayers()
+		-- 現在一番人が集まっているモードをチェック
+		local bestMode, readyPlayers, modeColor = getModeAndPlayers()
 		local readyCount = #readyPlayers
 
 		if readyCount == 0 then
-			broadcast("Stand in the ZONE to join!", Color3.new(0.5, 1, 1))
+			broadcast("Stand in a ZONE to join!", Color3.new(0.5, 1, 1))
 			task.wait(1)
 		else
+			local countdownCancelled = false
+
 			for i = INTERMISSION_TIME, 1, -1 do
-				broadcast("Match starts in " .. i .. " (" .. readyCount .. " players)", Color3.new(1, 1, 1))
+				-- 選ばれたモードの色でカウントダウンを表示
+				broadcast(bestMode .. " starts in " .. i .. " (" .. readyCount .. " players)", modeColor)
 				task.wait(1)
 
-				readyPlayers = getReadyPlayers()
-				readyCount = #readyPlayers
-				if readyCount == 0 then
+				-- ★変更5: カウントダウン中も人数を再チェック。逆転されたり人が消えたら中止
+				local currentMode, currentPlayers = getModeAndPlayers()
+				if currentMode ~= bestMode or #currentPlayers == 0 then
+					countdownCancelled = true
 					break
 				end
+				readyCount = #currentPlayers
 			end
 
-			if readyCount >= 1 then
-				startRound(readyPlayers)
+			if not countdownCancelled and readyCount >= 1 then
+				startRound(bestMode, readyPlayers)
 			end
 		end
 	end
