@@ -15,6 +15,7 @@ local CONTROLS = {
 	{ action = "SprintAction", label = "DASH", relX = 0, relY = 0 },
 	{ action = "FireAction", label = "FIRE", relX = 0, relY = -1 },
 	{ action = "ReloadAction", label = "RLD", relX = -1, relY = 0 },
+	{ action = "BuildAction", label = "BUILD", relX = 0, relY = -1 }, -- ★追加 (FIREと全く同じ位置)
 	{ action = "CrouchAction", label = "SLIDE", relX = 1, relY = 0 },
 }
 
@@ -25,10 +26,9 @@ local function updateLayout()
 
 	-- 状態の取得
 	local isReady = player:GetAttribute("IsReady")
-	local hasGun = false
-	if player.Character and player.Character:FindFirstChild("BouncyGun") then
-		hasGun = true
-	end
+	local char = player.Character
+	local hasGun = char and char:FindFirstChild("BouncyGun") ~= nil
+	local hasBuild = char and char:FindFirstChild("BuildTool") ~= nil
 
 	for _, ctrl in ipairs(CONTROLS) do
 		local btn = ContextActionService:GetButton(ctrl.action)
@@ -66,18 +66,19 @@ local function updateLayout()
 				titleLabel.Size = UDim2.new(0.7, 0, 0.35, 0)
 				titleLabel.Position = UDim2.new(0.15, 0, 0.325, 0)
 
-				-- ★追加: 文字をくっきりさせる設定
-				titleLabel.TextTransparency = 0 -- 文字自体は全く透かさない
-				titleLabel.TextStrokeColor3 = Color3.new(0, 0, 0) -- 黒い縁取り
-				titleLabel.TextStrokeTransparency = 0.5 -- 縁取りを少しつける
-				titleLabel.ZIndex = 1001 -- 背景(1000)より手前に
+				titleLabel.TextTransparency = 0
+				titleLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+				titleLabel.TextStrokeTransparency = 0.5
+				titleLabel.ZIndex = 1001
 			end
 
-			-- 表示/非表示のコントロール
+			-- ★ここでツールに応じて表示を切り替え
 			if not isReady then
 				btn.Visible = false
 			elseif ctrl.action == "FireAction" or ctrl.action == "ReloadAction" then
 				btn.Visible = hasGun
+			elseif ctrl.action == "BuildAction" then
+				btn.Visible = hasBuild
 			else
 				btn.Visible = true
 			end
@@ -89,4 +90,4 @@ end
 
 RunService.RenderStepped:Connect(updateLayout)
 
-print("Client: Mobile Layout Adjuster Loaded (Final Polish)")
+print("Client: Mobile Layout Adjuster Loaded (Added Build)")

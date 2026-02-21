@@ -75,9 +75,6 @@ playButton.Parent = screenGui
 -- ボタン装飾
 local uiCorner = Instance.new("UICorner", playButton)
 uiCorner.CornerRadius = UDim.new(0, 20)
-local uiStroke = Instance.new("UIStroke", playButton)
-uiStroke.Thickness = 4
-uiStroke.Color = Color3.new(1, 1, 1)
 
 -- ボタンアニメーション
 playButton.MouseEnter:Connect(function()
@@ -87,8 +84,10 @@ playButton.MouseLeave:Connect(function()
 	TweenService:Create(playButton, TweenInfo.new(0.1), { Size = UDim2.new(0, 250, 0, 80) }):Play()
 end)
 
--- ★追加: コントローラーで選択された時の見た目変化 (SelectionImageObjectを使わない場合)
-playButton.SelectionImageObject = nil -- デフォルトの点線枠を消す
+-- ★修正: コントローラーで選択された時のデフォルトの青い枠線を完全に透明にする
+local emptySelection = Instance.new("Frame")
+emptySelection.BackgroundTransparency = 1
+playButton.SelectionImageObject = emptySelection
 
 playButton.SelectionGained:Connect(function()
 	-- 選択されたら少し大きく
