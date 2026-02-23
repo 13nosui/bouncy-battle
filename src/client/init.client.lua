@@ -127,7 +127,6 @@ local function handleDestroy(actionName, inputState, inputObject)
 	return Enum.ContextActionResult.Pass
 end
 
--- ★追加: セーブとロードの処理
 local function handleSave(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin and isBuildEquipped then
 		local saveEvent = ReplicatedStorage:FindFirstChild("SaveStageEvent")
@@ -144,6 +143,18 @@ local function handleLoad(actionName, inputState, inputObject)
 		local loadEvent = ReplicatedStorage:FindFirstChild("LoadStageEvent")
 		if loadEvent then
 			loadEvent:FireServer()
+		end
+		return Enum.ContextActionResult.Sink
+	end
+	return Enum.ContextActionResult.Pass
+end
+
+-- ★追加: 公開する処理
+local function handlePublish(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin and isBuildEquipped then
+		local publishEvent = ReplicatedStorage:FindFirstChild("PublishStageEvent")
+		if publishEvent then
+			publishEvent:FireServer()
 		end
 		return Enum.ContextActionResult.Sink
 	end
@@ -203,7 +214,6 @@ local function handleToggleWeapon(actionName, inputState, inputObject)
 	end
 end
 
--- ★バインド追加（JキーでSAVE, KキーでLOAD）
 ContextActionService:BindAction(
 	"FireAction",
 	handleFireOrBuild,
@@ -229,6 +239,7 @@ ContextActionService:BindAction(
 ContextActionService:BindAction("ToggleShapeAction", handleToggleShape, true, Enum.KeyCode.F, Enum.KeyCode.DPadUp)
 ContextActionService:BindAction("SaveAction", handleSave, true, Enum.KeyCode.J, Enum.KeyCode.DPadRight)
 ContextActionService:BindAction("LoadAction", handleLoad, true, Enum.KeyCode.K, Enum.KeyCode.DPadDown)
+ContextActionService:BindAction("PublishAction", handlePublish, true, Enum.KeyCode.P, Enum.KeyCode.DPadLeft) -- ★バインド追加
 ContextActionService:BindAction("ToggleWeapon", handleToggleWeapon, false, Enum.KeyCode.ButtonY)
 
 ContextActionService:SetPosition("FireAction", UDim2.new(1, -100, 1, -100))
@@ -237,6 +248,7 @@ ContextActionService:SetPosition("DestroyAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("ToggleShapeAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("SaveAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("LoadAction", UDim2.new(1, -100, 1, -100))
+ContextActionService:SetPosition("PublishAction", UDim2.new(1, -100, 1, -100))
 
 local function onGunEquip()
 	isEquipped = true
@@ -271,6 +283,7 @@ local function onBuildEquip()
 	ContextActionService:SetTitle("ToggleShapeAction", "SHAPE")
 	ContextActionService:SetTitle("SaveAction", "SAVE(J)")
 	ContextActionService:SetTitle("LoadAction", "LOAD(K)")
+	ContextActionService:SetTitle("PublishAction", "PUBLISH(P)") -- ★追加
 end
 
 local function onBuildUnequip()

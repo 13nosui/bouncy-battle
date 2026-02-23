@@ -18,9 +18,9 @@ local CONTROLS = {
 	{ action = "DestroyAction", label = "BREAK", relX = -1, relY = -1 },
 	{ action = "ToggleShapeAction", label = "SHAPE", relX = 0, relY = -2 },
 	{ action = "CrouchAction", label = "SLIDE", relX = 1, relY = 0 },
-	-- ★追加: 右側に SAVE と LOAD を配置
 	{ action = "SaveAction", label = "SAVE", relX = 1, relY = -1 },
 	{ action = "LoadAction", label = "LOAD", relX = 1, relY = -2 },
+	{ action = "PublishAction", label = "PUBLISH", relX = 1, relY = 0 }, -- ★追加
 }
 
 local function updateLayout()
@@ -70,7 +70,6 @@ local function updateLayout()
 				titleLabel.ZIndex = 1001
 			end
 
-			-- 表示の切り替え
 			if not isReady then
 				btn.Visible = false
 			elseif ctrl.action == "FireAction" or ctrl.action == "ReloadAction" then
@@ -81,6 +80,7 @@ local function updateLayout()
 				or ctrl.action == "ToggleShapeAction"
 				or ctrl.action == "SaveAction"
 				or ctrl.action == "LoadAction"
+				or ctrl.action == "PublishAction"
 			then
 				btn.Visible = hasBuild -- ビルドツール関連
 			else

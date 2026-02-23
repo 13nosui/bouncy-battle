@@ -1,10 +1,10 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
 
--- "BouncyBattle_Stages_v1" という名前のデータベースを作成
+-- 個人のセーブ用と、みんなの公開用で2つのデータベースを用意
 local StageDataStore = DataStoreService:GetDataStore("BouncyBattle_Stages_v1")
+local CommunityDataStore = DataStoreService:GetDataStore("BouncyBattle_Community_v1")
 
--- 通信用イベントの準備
 local function getRemote(name)
 	local r = ReplicatedStorage:FindFirstChild(name)
 	if not r then
@@ -15,18 +15,31 @@ local function getRemote(name)
 	return r
 end
 
+-- サーバー内で完結する通信（GameLoopから呼び出す用）
+local function getBindable(name)
+	local b = ReplicatedStorage:FindFirstChild(name)
+	if not b then
+		b = Instance.new("BindableFunction")
+		b.Name = name
+		b.Parent = ReplicatedStorage
+	end
+	return b
+end
+
 local saveEvent = getRemote("SaveStageEvent")
 local loadEvent = getRemote("LoadStageEvent")
+local publishEvent = getRemote("PublishStageEvent") -- ★追加
 local messageEvent = getRemote("GameMessage")
+
+local getRandomStageBindable = getBindable("GetRandomCommunityStage") -- ★追加
 
 local BLOCK_SIZE = 4
 
--- === セーブ処理 ===
+-- === 既存のセーブ処理 ===
 saveEvent.OnServerEvent:Connect(function(player)
 	local stageData = {}
 	local blockCount = 0
 
-	-- ワークスペースにある "PlayerWall" をすべて探し出し、データを抽出する
 	for _, block in ipairs(workspace:GetChildren()) do
 		if block.Name == "PlayerWall" then
 			local shapeType = "Block"
@@ -38,9 +51,7 @@ saveEvent.OnServerEvent:Connect(function(player)
 				shapeType = "Sphere"
 			end
 
-			-- 位置と角度（CFrameの12個の要素）を完璧に記録する
 			local cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = block.CFrame:GetComponents()
-
 			table.insert(stageData, {
 				cx = cx,
 				cy = cy,
@@ -60,21 +71,18 @@ saveEvent.OnServerEvent:Connect(function(player)
 		end
 	end
 
-	-- データベースに保存（非同期処理）
 	local success, errorMessage = pcall(function()
-		-- 現在はプレイヤー固有のIDに紐づけて保存しています
 		StageDataStore:SetAsync(player.UserId .. "_MyStage", stageData)
 	end)
 
 	if success then
 		messageEvent:FireClient(player, "SAVED " .. blockCount .. " BLOCKS!", Color3.new(0.2, 1, 0.2))
 	else
-		warn("Save Error: " .. tostring(errorMessage))
 		messageEvent:FireClient(player, "SAVE FAILED", Color3.new(1, 0, 0))
 	end
 end)
 
--- === ロード処理 ===
+-- === 既存のロード処理 ===
 loadEvent.OnServerEvent:Connect(function(player)
 	local stageData
 	local success, errorMessage = pcall(function()
@@ -82,14 +90,12 @@ loadEvent.OnServerEvent:Connect(function(player)
 	end)
 
 	if success and stageData then
-		-- ロードする前に、今置かれているブロックをすべて消去する
 		for _, block in ipairs(workspace:GetChildren()) do
 			if block.Name == "PlayerWall" then
 				block:Destroy()
 			end
 		end
 
-		-- 保存されたデータからブロックを再構築する
 		for _, data in ipairs(stageData) do
 			local block
 			if data.shape == "Wedge" then
@@ -112,7 +118,6 @@ loadEvent.OnServerEvent:Connect(function(player)
 			block.Color = Color3.fromRGB(0, 200, 255)
 			block.CustomPhysicalProperties = PhysicalProperties.new(0.5, 0.3, 1.0, 1.0, 1.0)
 
-			-- CFrameで正確な位置と角度を復元
 			block.CFrame = CFrame.new(
 				data.cx,
 				data.cy,
@@ -135,4 +140,87 @@ loadEvent.OnServerEvent:Connect(function(player)
 	end
 end)
 
-print("Server: StageSaveSystem Loaded")
+-- === ★追加: PUBLISH（公開）処理 ===
+publishEvent.OnServerEvent:Connect(function(player)
+	local stageData = {}
+	local blockCount = 0
+
+	for _, block in ipairs(workspace:GetChildren()) do
+		if block.Name == "PlayerWall" then
+			local shapeType = "Block"
+			if block:IsA("WedgePart") then
+				shapeType = "Wedge"
+			elseif block.Shape == Enum.PartType.Cylinder then
+				shapeType = "Cylinder"
+			elseif block.Shape == Enum.PartType.Ball then
+				shapeType = "Sphere"
+			end
+
+			local cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = block.CFrame:GetComponents()
+			table.insert(stageData, {
+				cx = cx,
+				cy = cy,
+				cz = cz,
+				r00 = r00,
+				r01 = r01,
+				r02 = r02,
+				r10 = r10,
+				r11 = r11,
+				r12 = r12,
+				r20 = r20,
+				r21 = r21,
+				r22 = r22,
+				shape = shapeType,
+			})
+			blockCount = blockCount + 1
+		end
+	end
+
+	if blockCount == 0 then
+		messageEvent:FireClient(player, "NOTHING TO PUBLISH", Color3.new(1, 1, 0))
+		return
+	end
+
+	local success, errorMessage = pcall(function()
+		-- コミュニティに登録されているステージの「総数」を1増やす
+		local newCount = CommunityDataStore:UpdateAsync("CommunityStageCount", function(oldValue)
+			return (oldValue or 0) + 1
+		end)
+
+		-- 新しいID（例: CommunityStage_1）で、誰が作ったかの名前と一緒に保存する
+		CommunityDataStore:SetAsync("CommunityStage_" .. tostring(newCount), {
+			creatorName = player.Name,
+			data = stageData,
+		})
+	end)
+
+	if success then
+		messageEvent:FireClient(player, "PUBLISHED TO COMMUNITY!", Color3.new(1, 0.5, 0))
+	else
+		warn("Publish Error: " .. tostring(errorMessage))
+		messageEvent:FireClient(player, "PUBLISH FAILED", Color3.new(1, 0, 0))
+	end
+end)
+
+-- === ★追加: GameLoopからランダムなステージを要求された時の処理 ===
+getRandomStageBindable.OnInvoke = function()
+	local count = 0
+	pcall(function()
+		count = CommunityDataStore:GetAsync("CommunityStageCount") or 0
+	end)
+
+	if count > 0 then
+		local randomId = math.random(1, count)
+		local stageInfo
+		local success = pcall(function()
+			stageInfo = CommunityDataStore:GetAsync("CommunityStage_" .. tostring(randomId))
+		end)
+
+		if success and stageInfo then
+			return stageInfo
+		end
+	end
+	return nil
+end
+
+print("Server: StageSaveSystem Loaded (Publish Ready)")

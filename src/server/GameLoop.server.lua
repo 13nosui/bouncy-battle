@@ -12,8 +12,6 @@ local SHOW_LOBBY_MESSAGE = false
 
 local MapsFolder = ServerStorage:WaitForChild("Maps")
 local CurrentMap = nil
-
--- ★追加: ServerStorageからBuildToolを取得しておく
 local BuildToolTemplate = ServerStorage:WaitForChild("BuildTool", 5)
 
 local isMatchActive = false
@@ -25,9 +23,10 @@ local ZONES = {
 	{ name = "JoinZone_BUILD", mode = "BUILD", color = Color3.new(1, 0.9, 0.2) },
 }
 
+-- ★変更: 村ステージを削除し、コミュニティステージを追加
 local MAP_ZONES = {
-	{ name = "MapVote_City", mapName = "Map_City" },
-	{ name = "MapVote_Village", mapName = "Map_Village" },
+	-- { name = "MapVote_City", mapName = "Map_City" },
+	{ name = "MapVote_Community", mapName = "Community" },
 }
 
 local messageEvent = ReplicatedStorage:FindFirstChild("GameMessage")
@@ -174,7 +173,6 @@ local function loadMap(mapName)
 	end
 	CurrentMap = mapTemplate:Clone()
 	CurrentMap.Parent = Workspace
-	print("Map Loaded: " .. mapName)
 end
 
 local function resetScores()
@@ -199,15 +197,83 @@ local function startRound(mode, participants, mapName)
 		broadcast("MODE: BUILD BATTLE", Color3.new(1, 0.9, 0.2))
 	end
 
-	task.wait(2)
+	task.wait(4)
 
-	broadcast("MAP: " .. (mapName == "Map_City" and "CYBER CITY" or "VILLAGE"), Color3.new(0.8, 1, 0.8))
-	task.wait(2)
+	-- ★追加: コミュニティマップかどうかの判定
+	if mapName == "Community" then
+		local getRandomStageBindable = ReplicatedStorage:FindFirstChild("GetRandomCommunityStage")
+		local stageInfo = nil
+		if getRandomStageBindable then
+			stageInfo = getRandomStageBindable:Invoke()
+		end
 
-	loadMap(mapName)
+		if stageInfo and stageInfo.data then
+			-- 制作者の名前を画面にデカデカと表示！
+			broadcast("MAP: BUILT BY " .. string.upper(stageInfo.creatorName), Color3.new(1, 0.8, 0.2))
+			task.wait(2)
+
+			-- 基礎としてCityマップを読み込む
+			loadMap("Map_City")
+
+			-- ★データベースの情報からブロックを自動生成する
+			local BLOCK_SIZE = 4
+			for _, data in ipairs(stageInfo.data) do
+				local block
+				if data.shape == "Wedge" then
+					block = Instance.new("WedgePart")
+				else
+					block = Instance.new("Part")
+					if data.shape == "Cylinder" then
+						block.Shape = Enum.PartType.Cylinder
+					elseif data.shape == "Sphere" then
+						block.Shape = Enum.PartType.Ball
+					else
+						block.Shape = Enum.PartType.Block
+					end
+				end
+				block.Name = "PlayerWall"
+				block.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
+				block.Anchored = true
+				block.Material = Enum.Material.SmoothPlastic
+				block.Color = Color3.fromRGB(0, 200, 255)
+				block.CustomPhysicalProperties = PhysicalProperties.new(0.5, 0.3, 1.0, 1.0, 1.0)
+				block.CFrame = CFrame.new(
+					data.cx,
+					data.cy,
+					data.cz,
+					data.r00,
+					data.r01,
+					data.r02,
+					data.r10,
+					data.r11,
+					data.r12,
+					data.r20,
+					data.r21,
+					data.r22
+				)
+
+				-- マップ終了時に一緒に消えるよう CurrentMap の中に入れる
+				if CurrentMap then
+					block.Parent = CurrentMap
+				else
+					block.Parent = workspace
+				end
+			end
+		else
+			-- データがまだ無い場合の保険
+			broadcast("MAP: COMMUNITY (EMPTY)", Color3.new(0.8, 1, 0.8))
+			task.wait(2)
+			loadMap("Map_City")
+		end
+	else
+		-- 通常のマップ読み込み
+		broadcast("MAP: CYBER CITY", Color3.new(0.8, 1, 0.8))
+		task.wait(2)
+		loadMap(mapName)
+	end
+
 	teleportToArena(participants)
 
-	-- ★追加: BUILDモードの場合、参加者にビルドツールを配布する
 	if gameMode == "BUILD" and BuildToolTemplate then
 		for _, player in ipairs(participants) do
 			local backpack = player:FindFirstChild("Backpack")
@@ -231,7 +297,7 @@ local function startRound(mode, participants, mapName)
 
 	task.wait(5)
 	if CurrentMap then
-		CurrentMap:Destroy()
+		CurrentMap:Destroy() -- ここで追加されたブロックも一掃されます
 	end
 	teleportToLobby()
 end
@@ -329,9 +395,8 @@ Players.PlayerAdded:Connect(function(player)
 			onHumanoidDied(humanoid, player)
 		end)
 
-		-- ★追加: リスポーンした時に、もしBUILDモード中ならツールを再配布する
 		task.spawn(function()
-			task.wait(0.5) -- バックパックが作られるのを少し待つ
+			task.wait(0.5)
 			if isMatchActive and gameMode == "BUILD" and BuildToolTemplate then
 				local backpack = player:FindFirstChild("Backpack")
 				if backpack and not backpack:FindFirstChild("BuildTool") then
