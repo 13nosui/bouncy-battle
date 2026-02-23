@@ -8,10 +8,13 @@ local Teams = game:GetService("Teams")
 local INTERMISSION_TIME = 10
 local WIN_SCORE = 5
 local ROUND_TIME = 180
-local SHOW_LOBBY_MESSAGE = false -- ★追加: ロビーの「Stand in a ZONE...」メッセージを表示するかどうか
+local SHOW_LOBBY_MESSAGE = false
 
 local MapsFolder = ServerStorage:WaitForChild("Maps")
 local CurrentMap = nil
+
+-- ★追加: ServerStorageからBuildToolを取得しておく
+local BuildToolTemplate = ServerStorage:WaitForChild("BuildTool", 5)
 
 local isMatchActive = false
 local gameMode = "FFA"
@@ -202,8 +205,18 @@ local function startRound(mode, participants, mapName)
 	task.wait(2)
 
 	loadMap(mapName)
-
 	teleportToArena(participants)
+
+	-- ★追加: BUILDモードの場合、参加者にビルドツールを配布する
+	if gameMode == "BUILD" and BuildToolTemplate then
+		for _, player in ipairs(participants) do
+			local backpack = player:FindFirstChild("Backpack")
+			if backpack and not backpack:FindFirstChild("BuildTool") then
+				local tool = BuildToolTemplate:Clone()
+				tool.Parent = backpack
+			end
+		end
+	end
 
 	broadcast("START!", Color3.new(0, 1, 0))
 
@@ -229,7 +242,6 @@ local function gameLoop()
 		local readyCount = #readyPlayers
 
 		if readyCount == 0 then
-			-- ★設定がtrueの時だけメッセージを出すように変更
 			if SHOW_LOBBY_MESSAGE then
 				broadcast("Stand in a ZONE to join!", Color3.new(0.5, 1, 1))
 			end
@@ -315,6 +327,18 @@ Players.PlayerAdded:Connect(function(player)
 		local humanoid = character:WaitForChild("Humanoid")
 		humanoid.Died:Connect(function()
 			onHumanoidDied(humanoid, player)
+		end)
+
+		-- ★追加: リスポーンした時に、もしBUILDモード中ならツールを再配布する
+		task.spawn(function()
+			task.wait(0.5) -- バックパックが作られるのを少し待つ
+			if isMatchActive and gameMode == "BUILD" and BuildToolTemplate then
+				local backpack = player:FindFirstChild("Backpack")
+				if backpack and not backpack:FindFirstChild("BuildTool") then
+					local tool = BuildToolTemplate:Clone()
+					tool.Parent = backpack
+				end
+			end
 		end)
 	end)
 end)

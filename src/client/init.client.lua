@@ -86,7 +86,6 @@ local function handleFireOrBuild(actionName, inputState, inputObject)
 	return Enum.ContextActionResult.Pass
 end
 
--- ★新設: 回転の処理を独立させました
 local function tryRotate()
 	if not isBuildEquipped then
 		return
@@ -128,7 +127,29 @@ local function handleDestroy(actionName, inputState, inputObject)
 	return Enum.ContextActionResult.Pass
 end
 
--- ★ 強化: Eキー(破壊)とRキー(回転)が他の操作に邪魔されないように確実に拾う！
+-- ★追加: セーブとロードの処理
+local function handleSave(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin and isBuildEquipped then
+		local saveEvent = ReplicatedStorage:FindFirstChild("SaveStageEvent")
+		if saveEvent then
+			saveEvent:FireServer()
+		end
+		return Enum.ContextActionResult.Sink
+	end
+	return Enum.ContextActionResult.Pass
+end
+
+local function handleLoad(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin and isBuildEquipped then
+		local loadEvent = ReplicatedStorage:FindFirstChild("LoadStageEvent")
+		if loadEvent then
+			loadEvent:FireServer()
+		end
+		return Enum.ContextActionResult.Sink
+	end
+	return Enum.ContextActionResult.Pass
+end
+
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then
 		return
@@ -149,7 +170,6 @@ local function handleToggleShape(actionName, inputState, inputObject)
 			currentShapeIndex = 1
 		end
 		shapeLabel.Text = "SHAPE: " .. string.upper(SHAPES[currentShapeIndex])
-
 		shapeLabel.TextSize = 30
 		TweenService:Create(shapeLabel, TweenInfo.new(0.2), { TextSize = 24 }):Play()
 		return Enum.ContextActionResult.Sink
@@ -183,6 +203,7 @@ local function handleToggleWeapon(actionName, inputState, inputObject)
 	end
 end
 
+-- ★バインド追加（JキーでSAVE, KキーでLOAD）
 ContextActionService:BindAction(
 	"FireAction",
 	handleFireOrBuild,
@@ -206,12 +227,16 @@ ContextActionService:BindAction(
 	Enum.KeyCode.ButtonL2
 )
 ContextActionService:BindAction("ToggleShapeAction", handleToggleShape, true, Enum.KeyCode.F, Enum.KeyCode.DPadUp)
+ContextActionService:BindAction("SaveAction", handleSave, true, Enum.KeyCode.J, Enum.KeyCode.DPadRight)
+ContextActionService:BindAction("LoadAction", handleLoad, true, Enum.KeyCode.K, Enum.KeyCode.DPadDown)
 ContextActionService:BindAction("ToggleWeapon", handleToggleWeapon, false, Enum.KeyCode.ButtonY)
 
 ContextActionService:SetPosition("FireAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("ReloadOrRotateAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("DestroyAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("ToggleShapeAction", UDim2.new(1, -100, 1, -100))
+ContextActionService:SetPosition("SaveAction", UDim2.new(1, -100, 1, -100))
+ContextActionService:SetPosition("LoadAction", UDim2.new(1, -100, 1, -100))
 
 local function onGunEquip()
 	isEquipped = true
@@ -244,6 +269,8 @@ local function onBuildEquip()
 	ContextActionService:SetTitle("ReloadOrRotateAction", "ROTATE")
 	ContextActionService:SetTitle("DestroyAction", "BREAK")
 	ContextActionService:SetTitle("ToggleShapeAction", "SHAPE")
+	ContextActionService:SetTitle("SaveAction", "SAVE(J)")
+	ContextActionService:SetTitle("LoadAction", "LOAD(K)")
 end
 
 local function onBuildUnequip()
