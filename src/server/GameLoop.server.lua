@@ -8,6 +8,7 @@ local Teams = game:GetService("Teams")
 local INTERMISSION_TIME = 10
 local WIN_SCORE = 5
 local ROUND_TIME = 180
+local SHOW_LOBBY_MESSAGE = false -- ★追加: ロビーの「Stand in a ZONE...」メッセージを表示するかどうか
 
 local MapsFolder = ServerStorage:WaitForChild("Maps")
 local CurrentMap = nil
@@ -15,11 +16,15 @@ local CurrentMap = nil
 local isMatchActive = false
 local gameMode = "FFA"
 
--- ★変更1: 3つのゾーンとその設定を定義
 local ZONES = {
-	{ name = "JoinZone_FFA", mode = "FFA", color = Color3.new(1, 0.4, 0.4) }, -- 赤系
-	{ name = "JoinZone_TDM", mode = "TDM", color = Color3.new(0.4, 0.6, 1) }, -- 青系
-	{ name = "JoinZone_BUILD", mode = "BUILD", color = Color3.new(1, 0.9, 0.2) }, -- 黄系
+	{ name = "JoinZone_FFA", mode = "FFA", color = Color3.new(1, 0.4, 0.4) },
+	{ name = "JoinZone_TDM", mode = "TDM", color = Color3.new(0.4, 0.6, 1) },
+	{ name = "JoinZone_BUILD", mode = "BUILD", color = Color3.new(1, 0.9, 0.2) },
+}
+
+local MAP_ZONES = {
+	{ name = "MapVote_City", mapName = "Map_City" },
+	{ name = "MapVote_Village", mapName = "Map_Village" },
 }
 
 local messageEvent = ReplicatedStorage:FindFirstChild("GameMessage")
@@ -36,9 +41,6 @@ if not cameraEvent then
 	cameraEvent.Parent = ReplicatedStorage
 end
 
--- === ヘルパー関数 ===
-
--- ★変更2: 指定した1つのゾーンにいるプレイヤーを取得する関数
 local function getPlayersInZone(joinZone)
 	local overlapParams = OverlapParams.new()
 	overlapParams.FilterDescendantsInstances = { joinZone }
@@ -61,7 +63,6 @@ local function getPlayersInZone(joinZone)
 	return readyPlayers
 end
 
--- ★変更3: 全ゾーンを確認し、一番人が多いモードを決定する関数
 local function getModeAndPlayers()
 	local bestMode = nil
 	local bestPlayers = {}
@@ -71,7 +72,6 @@ local function getModeAndPlayers()
 		local joinZone = Workspace:FindFirstChild(zoneInfo.name, true)
 		if joinZone then
 			local playersInZone = getPlayersInZone(joinZone)
-			-- より多くの人がいるゾーンが勝つ
 			if #playersInZone > #bestPlayers then
 				bestPlayers = playersInZone
 				bestMode = zoneInfo.mode
@@ -83,6 +83,29 @@ local function getModeAndPlayers()
 	return bestMode, bestPlayers, bestColor
 end
 
+local function getVotedMap()
+	local bestMap = "Map_City"
+	local maxVotes = -1
+
+	for _, zoneInfo in ipairs(MAP_ZONES) do
+		local voteZone = Workspace:FindFirstChild(zoneInfo.name, true)
+		if voteZone then
+			local playersInZone = getPlayersInZone(voteZone)
+			if #playersInZone > maxVotes then
+				maxVotes = #playersInZone
+				bestMap = zoneInfo.mapName
+			end
+		end
+	end
+
+	if maxVotes <= 0 then
+		local randomZone = MAP_ZONES[math.random(1, #MAP_ZONES)]
+		bestMap = randomZone.mapName
+	end
+
+	return bestMap
+end
+
 local function broadcast(text, color)
 	messageEvent:FireAllClients(text, color)
 end
@@ -90,13 +113,11 @@ end
 local function teleportToLobby()
 	local lobbySpawn = Workspace:FindFirstChild("LobbySpawn", true)
 
-	if lobbySpawn then
-		for _, player in ipairs(Players:GetPlayers()) do
-			if player.Team ~= nil then
-				player.Team = nil
-				player:LoadCharacter()
-			end
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player.Team ~= nil then
+			player.Team = nil
 		end
+		player:LoadCharacter()
 	end
 
 	for _, child in ipairs(Workspace:GetChildren()) do
@@ -109,7 +130,7 @@ end
 local function teleportToArena(players)
 	local spawns = {}
 	if CurrentMap then
-		for _, child in ipairs(CurrentMap:GetChildren()) do
+		for _, child in ipairs(CurrentMap:GetDescendants()) do
 			if child:IsA("SpawnLocation") then
 				table.insert(spawns, child)
 			end
@@ -162,10 +183,7 @@ local function resetScores()
 	end
 end
 
--- === ゲームループ ===
-
--- ★変更4: 引数でモードを受け取り、それに応じてゲームを開始する
-local function startRound(mode, participants)
+local function startRound(mode, participants, mapName)
 	isMatchActive = true
 	gameMode = mode
 	resetScores()
@@ -178,9 +196,12 @@ local function startRound(mode, participants)
 		broadcast("MODE: BUILD BATTLE", Color3.new(1, 0.9, 0.2))
 	end
 
-	task.wait(3)
+	task.wait(2)
 
-	loadMap("Map_City")
+	broadcast("MAP: " .. (mapName == "Map_City" and "CYBER CITY" or "VILLAGE"), Color3.new(0.8, 1, 0.8))
+	task.wait(2)
+
+	loadMap(mapName)
 
 	teleportToArena(participants)
 
@@ -204,22 +225,22 @@ end
 
 local function gameLoop()
 	while true do
-		-- 現在一番人が集まっているモードをチェック
 		local bestMode, readyPlayers, modeColor = getModeAndPlayers()
 		local readyCount = #readyPlayers
 
 		if readyCount == 0 then
-			broadcast("Stand in a ZONE to join!", Color3.new(0.5, 1, 1))
+			-- ★設定がtrueの時だけメッセージを出すように変更
+			if SHOW_LOBBY_MESSAGE then
+				broadcast("Stand in a ZONE to join!", Color3.new(0.5, 1, 1))
+			end
 			task.wait(1)
 		else
 			local countdownCancelled = false
 
 			for i = INTERMISSION_TIME, 1, -1 do
-				-- 選ばれたモードの色でカウントダウンを表示
 				broadcast(bestMode .. " starts in " .. i .. " (" .. readyCount .. " players)", modeColor)
 				task.wait(1)
 
-				-- ★変更5: カウントダウン中も人数を再チェック。逆転されたり人が消えたら中止
 				local currentMode, currentPlayers = getModeAndPlayers()
 				if currentMode ~= bestMode or #currentPlayers == 0 then
 					countdownCancelled = true
@@ -229,13 +250,12 @@ local function gameLoop()
 			end
 
 			if not countdownCancelled and readyCount >= 1 then
-				startRound(bestMode, readyPlayers)
+				local selectedMap = getVotedMap()
+				startRound(bestMode, readyPlayers, selectedMap)
 			end
 		end
 	end
 end
-
--- === イベント接続 ===
 
 local function onHumanoidDied(humanoid, player)
 	if not isMatchActive then

@@ -12,13 +12,15 @@ local camera = workspace.CurrentCamera
 local fireEvent = ReplicatedStorage:WaitForChild("FireBullet")
 local effectEvent = ReplicatedStorage:WaitForChild("PlayEffect")
 local reloadEvent = ReplicatedStorage:WaitForChild("Reload")
-local buildEvent = ReplicatedStorage:WaitForChild("BuildEvent") -- ★追加
+local buildEvent = ReplicatedStorage:WaitForChild("BuildEvent")
 
 local CROSSHAIR_IMAGE = "rbxassetid://128000667256203"
 local CROSSHAIR_SIZE = 80
+local BLOCK_SIZE = 4
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "CrosshairGui"
+screenGui.IgnoreGuiInset = true
 screenGui.Parent = player:WaitForChild("PlayerGui")
 screenGui.Enabled = false
 
@@ -31,65 +33,131 @@ crosshair.AnchorPoint = Vector2.new(0.5, 0.5)
 crosshair.Position = UDim2.new(0.5, 0, 0.5, 0)
 crosshair.Parent = screenGui
 
--- ★状態管理
-local isEquipped = false -- BouncyGun用
-local isBuildEquipped = false -- BuildTool用
+local shapeLabel = Instance.new("TextLabel")
+shapeLabel.Name = "ShapeLabel"
+shapeLabel.Size = UDim2.new(0, 300, 0, 40)
+shapeLabel.Position = UDim2.new(0.5, 0, 0.6, 0)
+shapeLabel.AnchorPoint = Vector2.new(0.5, 0)
+shapeLabel.BackgroundTransparency = 1
+shapeLabel.TextColor3 = Color3.fromRGB(255, 255, 50)
+shapeLabel.TextStrokeTransparency = 0
+shapeLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+shapeLabel.Font = Enum.Font.GothamBlack
+shapeLabel.TextSize = 24
+shapeLabel.Text = "SHAPE: BLOCK"
+shapeLabel.Parent = screenGui
 
-local function handleFire(actionName, inputState, inputObject)
-	if inputState == Enum.UserInputState.Begin and isEquipped then
-		local targetPos = camera.CFrame.Position + (camera.CFrame.LookVector * 1000)
-		local rayParams = RaycastParams.new()
-		rayParams.FilterDescendantsInstances = { player.Character }
-		rayParams.FilterType = Enum.RaycastFilterType.Exclude
+local SHAPES = { "Block", "Wedge", "Cylinder", "Sphere" }
+local currentShapeIndex = 1
 
-		local rayResult = workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * 1000, rayParams)
-		if rayResult then
-			targetPos = rayResult.Position
+local isEquipped = false
+local isBuildEquipped = false
+
+local function getRayResult()
+	local rayParams = RaycastParams.new()
+	rayParams.FilterDescendantsInstances = { player.Character }
+	rayParams.FilterType = Enum.RaycastFilterType.Exclude
+	return workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * 100, rayParams)
+end
+
+local function handleFireOrBuild(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
+		if isEquipped then
+			local targetPos = camera.CFrame.Position + (camera.CFrame.LookVector * 1000)
+			local rayResult = getRayResult()
+			if rayResult then
+				targetPos = rayResult.Position
+			end
+			fireEvent:FireServer(targetPos)
+			return Enum.ContextActionResult.Sink
+		elseif isBuildEquipped then
+			local rayResult = getRayResult()
+			local targetPos
+			if rayResult then
+				targetPos = rayResult.Position + (rayResult.Normal * (BLOCK_SIZE / 2))
+			else
+				targetPos = camera.CFrame.Position + (camera.CFrame.LookVector * 15)
+			end
+			local currentShape = SHAPES[currentShapeIndex]
+			buildEvent:FireServer("Build", targetPos, currentShape)
+			return Enum.ContextActionResult.Sink
 		end
-		fireEvent:FireServer(targetPos)
+	end
+	return Enum.ContextActionResult.Pass
+end
+
+-- ★新設: 回転の処理を独立させました
+local function tryRotate()
+	if not isBuildEquipped then
+		return
+	end
+	local rayResult = getRayResult()
+	if rayResult and rayResult.Instance and rayResult.Instance.Name == "PlayerWall" then
+		buildEvent:FireServer("Rotate", rayResult.Instance)
+	end
+end
+
+local function handleReloadOrRotate(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
+		if isEquipped then
+			reloadEvent:FireServer()
+			return Enum.ContextActionResult.Sink
+		elseif isBuildEquipped then
+			tryRotate()
+			return Enum.ContextActionResult.Sink
+		end
+	end
+	return Enum.ContextActionResult.Pass
+end
+
+local function tryDestroy()
+	if not isBuildEquipped then
+		return
+	end
+	local rayResult = getRayResult()
+	if rayResult and rayResult.Instance and rayResult.Instance.Name == "PlayerWall" then
+		buildEvent:FireServer("Destroy", rayResult.Instance)
+	end
+end
+
+local function handleDestroy(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
+		tryDestroy()
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
 end
 
-local function handleReload(actionName, inputState, inputObject)
-	if inputState == Enum.UserInputState.Begin and isEquipped then
-		reloadEvent:FireServer()
-		return Enum.ContextActionResult.Sink
+-- ★ 強化: Eキー(破壊)とRキー(回転)が他の操作に邪魔されないように確実に拾う！
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then
+		return
 	end
-	return Enum.ContextActionResult.Pass
-end
+	if isBuildEquipped then
+		if input.KeyCode == Enum.KeyCode.E then
+			tryDestroy()
+		elseif input.KeyCode == Enum.KeyCode.R then
+			tryRotate()
+		end
+	end
+end)
 
--- ★追加: 壁を建てる処理
-local function handleBuild(actionName, inputState, inputObject)
+local function handleToggleShape(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin and isBuildEquipped then
-		local rayParams = RaycastParams.new()
-		rayParams.FilterDescendantsInstances = { player.Character }
-		rayParams.FilterType = Enum.RaycastFilterType.Exclude
-
-		-- 視線の先にレイを飛ばす（最大30スタッド）
-		local rayResult = workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * 30, rayParams)
-		local targetPos = camera.CFrame.Position + (camera.CFrame.LookVector * 15) -- 基本は15スタッド先
-
-		if rayResult and rayResult.Distance < 15 then
-			targetPos = rayResult.Position
+		currentShapeIndex = currentShapeIndex + 1
+		if currentShapeIndex > #SHAPES then
+			currentShapeIndex = 1
 		end
+		shapeLabel.Text = "SHAPE: " .. string.upper(SHAPES[currentShapeIndex])
 
-		-- プレイヤーの水平方向を向かせる
-		local lookDir = camera.CFrame.LookVector
-		local flatLook = Vector3.new(lookDir.X, 0, lookDir.Z).Unit
-		if flatLook.Magnitude < 0.001 then
-			flatLook = Vector3.new(0, 0, -1)
-		end
-		local buildCFrame = CFrame.lookAt(targetPos, targetPos + flatLook)
-
-		buildEvent:FireServer(buildCFrame)
+		shapeLabel.TextSize = 30
+		TweenService:Create(shapeLabel, TweenInfo.new(0.2), { TextSize = 24 }):Play()
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
 end
 
-local function handleToggle(actionName, inputState, inputObject)
+local function handleToggleWeapon(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
 		local character = player.Character
 		if not character then
@@ -115,32 +183,45 @@ local function handleToggle(actionName, inputState, inputObject)
 	end
 end
 
--- 初期バインド
-ContextActionService:BindAction("FireAction", handleFire, true, Enum.UserInputType.MouseButton1, Enum.KeyCode.ButtonR2)
-ContextActionService:BindAction("ReloadAction", handleReload, true, Enum.KeyCode.R, Enum.KeyCode.ButtonX)
 ContextActionService:BindAction(
-	"BuildAction",
-	handleBuild,
+	"FireAction",
+	handleFireOrBuild,
 	true,
 	Enum.UserInputType.MouseButton1,
 	Enum.KeyCode.ButtonR2
-) -- ★追加
-ContextActionService:BindAction("ToggleWeapon", handleToggle, false, Enum.KeyCode.ButtonY)
+)
+ContextActionService:BindAction(
+	"ReloadOrRotateAction",
+	handleReloadOrRotate,
+	true,
+	Enum.KeyCode.R,
+	Enum.KeyCode.ButtonX
+)
+ContextActionService:BindAction(
+	"DestroyAction",
+	handleDestroy,
+	true,
+	Enum.KeyCode.E,
+	Enum.UserInputType.MouseButton2,
+	Enum.KeyCode.ButtonL2
+)
+ContextActionService:BindAction("ToggleShapeAction", handleToggleShape, true, Enum.KeyCode.F, Enum.KeyCode.DPadUp)
+ContextActionService:BindAction("ToggleWeapon", handleToggleWeapon, false, Enum.KeyCode.ButtonY)
 
-ContextActionService:SetTitle("FireAction", "FIRE")
-ContextActionService:SetTitle("ReloadAction", "RLD")
-ContextActionService:SetTitle("BuildAction", "BUILD") -- ★追加
-
--- 自動整列防止のダミー座標
 ContextActionService:SetPosition("FireAction", UDim2.new(1, -100, 1, -100))
-ContextActionService:SetPosition("ReloadAction", UDim2.new(1, -100, 1, -100))
-ContextActionService:SetPosition("BuildAction", UDim2.new(1, -100, 1, -100)) -- ★追加
+ContextActionService:SetPosition("ReloadOrRotateAction", UDim2.new(1, -100, 1, -100))
+ContextActionService:SetPosition("DestroyAction", UDim2.new(1, -100, 1, -100))
+ContextActionService:SetPosition("ToggleShapeAction", UDim2.new(1, -100, 1, -100))
 
 local function onGunEquip()
 	isEquipped = true
 	screenGui.Enabled = true
+	shapeLabel.Visible = false
 	UserInputService.MouseIconEnabled = false
 	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+
+	ContextActionService:SetTitle("FireAction", "FIRE")
+	ContextActionService:SetTitle("ReloadOrRotateAction", "RLD")
 end
 
 local function onGunUnequip()
@@ -152,12 +233,17 @@ local function onGunUnequip()
 	end
 end
 
--- ★追加: ビルドツール装備時
 local function onBuildEquip()
 	isBuildEquipped = true
 	screenGui.Enabled = true
+	shapeLabel.Visible = true
 	UserInputService.MouseIconEnabled = false
 	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+
+	ContextActionService:SetTitle("FireAction", "BUILD")
+	ContextActionService:SetTitle("ReloadOrRotateAction", "ROTATE")
+	ContextActionService:SetTitle("DestroyAction", "BREAK")
+	ContextActionService:SetTitle("ToggleShapeAction", "SHAPE")
 end
 
 local function onBuildUnequip()
@@ -207,7 +293,6 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 		if not toolHandle then
 			return
 		end
-
 		local spawnCFrame
 		local muzzle = toolHandle:FindFirstChild("Muzzle")
 		if muzzle then
@@ -215,7 +300,6 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 		else
 			spawnCFrame = toolHandle.CFrame * CFrame.new(0, 0, -2)
 		end
-
 		local flash = Instance.new("Part")
 		flash.Shape = Enum.PartType.Ball
 		flash.Color = Color3.fromRGB(255, 230, 150)
@@ -226,12 +310,11 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 		flash.CanCollide = false
 		flash.Transparency = 0.1
 		flash.Parent = workspace
-
-		local tweenInfo = TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		local tween = TweenService:Create(flash, tweenInfo, { Size = Vector3.new(3.5, 3.5, 3.5), Transparency = 1 })
-		tween:Play()
+		TweenService:Create(
+			flash,
+			TweenInfo.new(0.06, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = Vector3.new(3.5, 3.5, 3.5), Transparency = 1 }
+		):Play()
 		Debris:AddItem(flash, 0.1)
 	end
 end)
-
-print("Client: Mobile Ready Gun & Build System (No Unbind)")

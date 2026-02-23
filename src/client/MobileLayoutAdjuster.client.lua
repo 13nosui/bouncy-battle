@@ -5,7 +5,6 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 
--- === 設定：右下基準の固定レイアウト ===
 local BTN_SIZE = 65
 local SPACING = 85
 local BASE_OFFSET_X = -180
@@ -15,7 +14,9 @@ local CONTROLS = {
 	{ action = "SprintAction", label = "DASH", relX = 0, relY = 0 },
 	{ action = "FireAction", label = "FIRE", relX = 0, relY = -1 },
 	{ action = "ReloadAction", label = "RLD", relX = -1, relY = 0 },
-	{ action = "BuildAction", label = "BUILD", relX = 0, relY = -1 }, -- ★追加 (FIREと全く同じ位置)
+	{ action = "BuildAction", label = "BUILD", relX = 0, relY = -1 },
+	{ action = "DestroyAction", label = "BREAK", relX = -1, relY = -1 },
+	{ action = "ToggleShapeAction", label = "SHAPE", relX = 0, relY = -2 }, -- ★追加 (BUILDの上)
 	{ action = "CrouchAction", label = "SLIDE", relX = 1, relY = 0 },
 }
 
@@ -24,7 +25,6 @@ local function updateLayout()
 		return
 	end
 
-	-- 状態の取得
 	local isReady = player:GetAttribute("IsReady")
 	local char = player.Character
 	local hasGun = char and char:FindFirstChild("BouncyGun") ~= nil
@@ -34,7 +34,6 @@ local function updateLayout()
 		local btn = ContextActionService:GetButton(ctrl.action)
 
 		if btn then
-			-- 座標とサイズ
 			local x = BASE_OFFSET_X + (ctrl.relX * SPACING)
 			local y = BASE_OFFSET_Y + (ctrl.relY * SPACING)
 
@@ -42,13 +41,11 @@ local function updateLayout()
 			btn.Size = UDim2.new(0, BTN_SIZE, 0, BTN_SIZE)
 			btn.AnchorPoint = Vector2.new(0.5, 0.5)
 
-			-- デザインのモダン化
 			btn.Style = Enum.ButtonStyle.Custom
 			btn.Image = ""
 			btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 			btn.BackgroundTransparency = 0.4
 
-			-- 丸くする
 			local corner = btn:FindFirstChildOfClass("UICorner")
 			if not corner then
 				corner = Instance.new("UICorner")
@@ -56,7 +53,6 @@ local function updateLayout()
 			end
 			corner.CornerRadius = UDim.new(0.5, 0)
 
-			-- タイトル設定
 			ContextActionService:SetTitle(ctrl.action, ctrl.label)
 			local titleLabel = btn:FindFirstChild("ActionTitle")
 			if titleLabel then
@@ -65,20 +61,22 @@ local function updateLayout()
 				titleLabel.TextScaled = true
 				titleLabel.Size = UDim2.new(0.7, 0, 0.35, 0)
 				titleLabel.Position = UDim2.new(0.15, 0, 0.325, 0)
-
 				titleLabel.TextTransparency = 0
 				titleLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
 				titleLabel.TextStrokeTransparency = 0.5
 				titleLabel.ZIndex = 1001
 			end
 
-			-- ★ここでツールに応じて表示を切り替え
 			if not isReady then
 				btn.Visible = false
 			elseif ctrl.action == "FireAction" or ctrl.action == "ReloadAction" then
 				btn.Visible = hasGun
-			elseif ctrl.action == "BuildAction" then
-				btn.Visible = hasBuild
+			elseif
+				ctrl.action == "BuildAction"
+				or ctrl.action == "DestroyAction"
+				or ctrl.action == "ToggleShapeAction"
+			then
+				btn.Visible = hasBuild -- ビルドツール関連のボタンをまとめる
 			else
 				btn.Visible = true
 			end
@@ -89,5 +87,3 @@ local function updateLayout()
 end
 
 RunService.RenderStepped:Connect(updateLayout)
-
-print("Client: Mobile Layout Adjuster Loaded (Added Build)")
