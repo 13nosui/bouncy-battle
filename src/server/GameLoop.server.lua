@@ -23,12 +23,6 @@ local ZONES = {
 	{ name = "JoinZone_BUILD", mode = "BUILD", color = Color3.new(1, 0.9, 0.2) },
 }
 
--- ★変更: 村ステージを削除し、コミュニティステージを追加
-local MAP_ZONES = {
-	-- { name = "MapVote_City", mapName = "Map_City" },
-	{ name = "MapVote_Community", mapName = "Community" },
-}
-
 local messageEvent = ReplicatedStorage:FindFirstChild("GameMessage")
 if not messageEvent then
 	messageEvent = Instance.new("RemoteEvent")
@@ -42,6 +36,123 @@ if not cameraEvent then
 	cameraEvent.Name = "CameraEvent"
 	cameraEvent.Parent = ReplicatedStorage
 end
+
+-- ==============================================
+-- === ★追加: マップ選択看板 (Map Board) システム ===
+-- ==============================================
+local selectedMapIndex = 1
+local availableMaps = {
+	{ type = "Official", name = "Cyber City", mapName = "Map_City" },
+}
+
+-- 看板を自動生成する
+local mapBoard = Instance.new("Part")
+mapBoard.Name = "MapSelectorBoard"
+mapBoard.Size = Vector3.new(12, 6, 1)
+
+-- ★修正: ロビーのスポーン地点のすぐ目の前に配置して絶対に見えるようにする
+local lobbySpawn = Workspace:FindFirstChild("LobbySpawn", true)
+if lobbySpawn then
+	mapBoard.Position = lobbySpawn.Position + Vector3.new(0, 6, -15)
+else
+	mapBoard.Position = Vector3.new(0, 10, -25)
+end
+
+mapBoard.Anchored = true
+mapBoard.Material = Enum.Material.SmoothPlastic
+mapBoard.Color = Color3.fromRGB(30, 30, 30)
+mapBoard.Parent = Workspace
+
+local surfaceGui = Instance.new("SurfaceGui")
+surfaceGui.Face = Enum.NormalId.Front
+surfaceGui.Parent = mapBoard
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 0.3, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "--- NEXT MAP ---"
+titleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+titleLabel.TextScaled = true
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Parent = surfaceGui
+
+local mapNameLabel = Instance.new("TextLabel")
+mapNameLabel.Size = UDim2.new(1, 0, 0.7, 0)
+mapNameLabel.Position = UDim2.new(0, 0, 0.3, 0)
+mapNameLabel.BackgroundTransparency = 1
+mapNameLabel.Text = "Loading..."
+mapNameLabel.TextColor3 = Color3.fromRGB(80, 240, 255)
+mapNameLabel.TextScaled = true
+mapNameLabel.Font = Enum.Font.GothamBlack
+mapNameLabel.Parent = surfaceGui
+
+local clickDetector = Instance.new("ClickDetector")
+clickDetector.MaxActivationDistance = 30
+clickDetector.Parent = mapBoard
+
+local function updateBoardDisplay()
+	local current = availableMaps[selectedMapIndex]
+	if not current then
+		return
+	end
+
+	if current.type == "Official" then
+		mapNameLabel.Text = "[CLICK HERE]\n" .. current.name
+		mapNameLabel.TextColor3 = Color3.fromRGB(80, 240, 255)
+	else
+		mapNameLabel.Text = "[CLICK HERE]\nStage " .. current.stageId .. "\n(by " .. current.creator .. ")"
+		mapNameLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+	end
+end
+
+local function refreshAvailableMaps()
+	local newList = {
+		{ type = "Official", name = "Cyber City", mapName = "Map_City" },
+	}
+
+	local getStageListBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageList")
+	if getStageListBindable then
+		local communityList = getStageListBindable:Invoke()
+		if communityList then
+			for _, stage in ipairs(communityList) do
+				table.insert(newList, {
+					type = "Community",
+					creator = stage.creatorName,
+					stageId = stage.id,
+				})
+			end
+		end
+	end
+
+	availableMaps = newList
+	if selectedMapIndex > #availableMaps then
+		selectedMapIndex = 1
+	end
+	updateBoardDisplay()
+end
+
+clickDetector.MouseClick:Connect(function()
+	selectedMapIndex = selectedMapIndex + 1
+	if selectedMapIndex > #availableMaps then
+		selectedMapIndex = 1
+	end
+	updateBoardDisplay()
+
+	local sound = Instance.new("Sound")
+	sound.SoundId = "rbxassetid://12222084"
+	sound.Volume = 0.5
+	sound.Parent = mapBoard
+	sound:Play()
+	game:GetService("Debris"):AddItem(sound, 1)
+end)
+
+-- 起動時に一度リストを更新
+task.spawn(function()
+	task.wait(3) -- データストアの読み込みを待つ
+	refreshAvailableMaps()
+end)
+
+-- ==============================================
 
 local function getPlayersInZone(joinZone)
 	local overlapParams = OverlapParams.new()
@@ -85,29 +196,6 @@ local function getModeAndPlayers()
 	return bestMode, bestPlayers, bestColor
 end
 
-local function getVotedMap()
-	local bestMap = "Map_City"
-	local maxVotes = -1
-
-	for _, zoneInfo in ipairs(MAP_ZONES) do
-		local voteZone = Workspace:FindFirstChild(zoneInfo.name, true)
-		if voteZone then
-			local playersInZone = getPlayersInZone(voteZone)
-			if #playersInZone > maxVotes then
-				maxVotes = #playersInZone
-				bestMap = zoneInfo.mapName
-			end
-		end
-	end
-
-	if maxVotes <= 0 then
-		local randomZone = MAP_ZONES[math.random(1, #MAP_ZONES)]
-		bestMap = randomZone.mapName
-	end
-
-	return bestMap
-end
-
 local function broadcast(text, color)
 	messageEvent:FireAllClients(text, color)
 end
@@ -127,6 +215,9 @@ local function teleportToLobby()
 			child:Destroy()
 		end
 	end
+
+	-- ロビーに戻った時に最新のステージリストを更新する
+	task.spawn(refreshAvailableMaps)
 end
 
 local function teleportToArena(players)
@@ -184,7 +275,7 @@ local function resetScores()
 	end
 end
 
-local function startRound(mode, participants, mapName)
+local function startRound(mode, participants)
 	isMatchActive = true
 	gameMode = mode
 	resetScores()
@@ -197,25 +288,27 @@ local function startRound(mode, participants, mapName)
 		broadcast("MODE: BUILD BATTLE", Color3.new(1, 0.9, 0.2))
 	end
 
-	task.wait(4)
+	task.wait(3)
 
-	-- ★追加: コミュニティマップかどうかの判定
-	if mapName == "Community" then
-		local getRandomStageBindable = ReplicatedStorage:FindFirstChild("GetRandomCommunityStage")
+	-- ★変更: 看板で現在選ばれているマップをロードする
+	local targetMap = availableMaps[selectedMapIndex]
+
+	if targetMap.type == "Community" then
+		broadcast(
+			"MAP: STAGE " .. targetMap.stageId .. "\nBY " .. string.upper(targetMap.creator),
+			Color3.new(1, 0.8, 0.2)
+		)
+		task.wait(3)
+
+		loadMap("Map_City") -- ベースとしてCityを読み込む
+
+		local getStageByIdBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageById")
 		local stageInfo = nil
-		if getRandomStageBindable then
-			stageInfo = getRandomStageBindable:Invoke()
+		if getStageByIdBindable then
+			stageInfo = getStageByIdBindable:Invoke(targetMap.stageId)
 		end
 
 		if stageInfo and stageInfo.data then
-			-- 制作者の名前を画面にデカデカと表示！
-			broadcast("MAP: BUILT BY " .. string.upper(stageInfo.creatorName), Color3.new(1, 0.8, 0.2))
-			task.wait(2)
-
-			-- 基礎としてCityマップを読み込む
-			loadMap("Map_City")
-
-			-- ★データベースの情報からブロックを自動生成する
 			local BLOCK_SIZE = 4
 			for _, data in ipairs(stageInfo.data) do
 				local block
@@ -252,24 +345,18 @@ local function startRound(mode, participants, mapName)
 					data.r22
 				)
 
-				-- マップ終了時に一緒に消えるよう CurrentMap の中に入れる
 				if CurrentMap then
 					block.Parent = CurrentMap
 				else
 					block.Parent = workspace
 				end
 			end
-		else
-			-- データがまだ無い場合の保険
-			broadcast("MAP: COMMUNITY (EMPTY)", Color3.new(0.8, 1, 0.8))
-			task.wait(2)
-			loadMap("Map_City")
 		end
 	else
-		-- 通常のマップ読み込み
-		broadcast("MAP: CYBER CITY", Color3.new(0.8, 1, 0.8))
-		task.wait(2)
-		loadMap(mapName)
+		-- Official（Cyber City）の場合
+		broadcast("MAP: " .. string.upper(targetMap.name), Color3.new(0.8, 1, 0.8))
+		task.wait(3)
+		loadMap(targetMap.mapName)
 	end
 
 	teleportToArena(participants)
@@ -297,7 +384,7 @@ local function startRound(mode, participants, mapName)
 
 	task.wait(5)
 	if CurrentMap then
-		CurrentMap:Destroy() -- ここで追加されたブロックも一掃されます
+		CurrentMap:Destroy()
 	end
 	teleportToLobby()
 end
@@ -328,8 +415,7 @@ local function gameLoop()
 			end
 
 			if not countdownCancelled and readyCount >= 1 then
-				local selectedMap = getVotedMap()
-				startRound(bestMode, readyPlayers, selectedMap)
+				startRound(bestMode, readyPlayers)
 			end
 		end
 	end
@@ -343,7 +429,6 @@ local function onHumanoidDied(humanoid, player)
 	local creatorTag = humanoid:FindFirstChild("creator")
 	if creatorTag and creatorTag.Value then
 		local killer = creatorTag.Value
-
 		local killerChar = nil
 		if killer:IsA("Player") then
 			killerChar = killer.Character
@@ -359,7 +444,6 @@ local function onHumanoidDied(humanoid, player)
 			if gameMode == "TDM" and killer.Team == player.Team and player.Team ~= nil then
 				return
 			end
-
 			local stats = killer:FindFirstChild("leaderstats")
 			if stats then
 				stats.Kills.Value = stats.Kills.Value + 1
@@ -380,11 +464,9 @@ Players.PlayerAdded:Connect(function(player)
 	kills.Changed:Connect(function(newValue)
 		if isMatchActive and newValue >= WIN_SCORE then
 			broadcast(player.Name .. " WINS!", Color3.new(1, 0.5, 0))
-
 			if player.Character then
 				cameraEvent:FireAllClients("Win", player.Character)
 			end
-
 			isMatchActive = false
 		end
 	end)

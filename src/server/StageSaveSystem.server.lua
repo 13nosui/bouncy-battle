@@ -1,7 +1,6 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local DataStoreService = game:GetService("DataStoreService")
 
--- 個人のセーブ用と、みんなの公開用で2つのデータベースを用意
 local StageDataStore = DataStoreService:GetDataStore("BouncyBattle_Stages_v1")
 local CommunityDataStore = DataStoreService:GetDataStore("BouncyBattle_Community_v1")
 
@@ -15,7 +14,6 @@ local function getRemote(name)
 	return r
 end
 
--- サーバー内で完結する通信（GameLoopから呼び出す用）
 local function getBindable(name)
 	local b = ReplicatedStorage:FindFirstChild(name)
 	if not b then
@@ -28,12 +26,41 @@ end
 
 local saveEvent = getRemote("SaveStageEvent")
 local loadEvent = getRemote("LoadStageEvent")
-local publishEvent = getRemote("PublishStageEvent") -- ★追加
+local publishEvent = getRemote("PublishStageEvent")
 local messageEvent = getRemote("GameMessage")
 
-local getRandomStageBindable = getBindable("GetRandomCommunityStage") -- ★追加
+-- ★変更: リスト取得とID指定ロード用のBindable
+local getStageListBindable = getBindable("GetCommunityStageList")
+local getStageByIdBindable = getBindable("GetCommunityStageById")
 
 local BLOCK_SIZE = 4
+
+-- === ★追加: ステージリストのキャッシュ機能 ===
+-- 毎回データベースを検索すると制限に引っかかるため、サーバー内にリストを保持します
+local communityStageListCache = {}
+
+local function refreshStageListCache()
+	local list = {}
+	local success, count = pcall(function()
+		return CommunityDataStore:GetAsync("CommunityStageCount") or 0
+	end)
+
+	if success and count > 0 then
+		for i = 1, count do
+			local info
+			local s = pcall(function()
+				info = CommunityDataStore:GetAsync("CommunityStage_" .. tostring(i))
+			end)
+			if s and info then
+				table.insert(list, { id = i, creatorName = info.creatorName })
+			end
+		end
+	end
+	communityStageListCache = list
+end
+
+-- 起動時に一度読み込む
+task.spawn(refreshStageListCache)
 
 -- === 既存のセーブ処理 ===
 saveEvent.OnServerEvent:Connect(function(player)
@@ -117,7 +144,6 @@ loadEvent.OnServerEvent:Connect(function(player)
 			block.Material = Enum.Material.SmoothPlastic
 			block.Color = Color3.fromRGB(0, 200, 255)
 			block.CustomPhysicalProperties = PhysicalProperties.new(0.5, 0.3, 1.0, 1.0, 1.0)
-
 			block.CFrame = CFrame.new(
 				data.cx,
 				data.cy,
@@ -140,7 +166,7 @@ loadEvent.OnServerEvent:Connect(function(player)
 	end
 end)
 
--- === ★追加: PUBLISH（公開）処理 ===
+-- === PUBLISH（公開）処理 ===
 publishEvent.OnServerEvent:Connect(function(player)
 	local stageData = {}
 	local blockCount = 0
@@ -182,12 +208,9 @@ publishEvent.OnServerEvent:Connect(function(player)
 	end
 
 	local success, errorMessage = pcall(function()
-		-- コミュニティに登録されているステージの「総数」を1増やす
 		local newCount = CommunityDataStore:UpdateAsync("CommunityStageCount", function(oldValue)
 			return (oldValue or 0) + 1
 		end)
-
-		-- 新しいID（例: CommunityStage_1）で、誰が作ったかの名前と一緒に保存する
 		CommunityDataStore:SetAsync("CommunityStage_" .. tostring(newCount), {
 			creatorName = player.Name,
 			data = stageData,
@@ -195,32 +218,27 @@ publishEvent.OnServerEvent:Connect(function(player)
 	end)
 
 	if success then
+		task.spawn(refreshStageListCache) -- 公開したらリストを更新
 		messageEvent:FireClient(player, "PUBLISHED TO COMMUNITY!", Color3.new(1, 0.5, 0))
 	else
-		warn("Publish Error: " .. tostring(errorMessage))
 		messageEvent:FireClient(player, "PUBLISH FAILED", Color3.new(1, 0, 0))
 	end
 end)
 
--- === ★追加: GameLoopからランダムなステージを要求された時の処理 ===
-getRandomStageBindable.OnInvoke = function()
-	local count = 0
-	pcall(function()
-		count = CommunityDataStore:GetAsync("CommunityStageCount") or 0
+-- ★追加: GameLoopからの要求に応える処理
+getStageListBindable.OnInvoke = function()
+	return communityStageListCache
+end
+
+getStageByIdBindable.OnInvoke = function(id)
+	local stageInfo
+	local success = pcall(function()
+		stageInfo = CommunityDataStore:GetAsync("CommunityStage_" .. tostring(id))
 	end)
-
-	if count > 0 then
-		local randomId = math.random(1, count)
-		local stageInfo
-		local success = pcall(function()
-			stageInfo = CommunityDataStore:GetAsync("CommunityStage_" .. tostring(randomId))
-		end)
-
-		if success and stageInfo then
-			return stageInfo
-		end
+	if success and stageInfo then
+		return stageInfo
 	end
 	return nil
 end
 
-print("Server: StageSaveSystem Loaded (Publish Ready)")
+print("Server: StageSaveSystem Loaded (With List Support)")
