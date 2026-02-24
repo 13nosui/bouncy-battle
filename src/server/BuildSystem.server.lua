@@ -14,7 +14,7 @@ local function snapToGrid(position)
 	return Vector3.new(x, y, z)
 end
 
-buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeType)
+buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeType, colorData, matData)
 	if actionType == "Build" then
 		if cooldowns[player.UserId] and (tick() - cooldowns[player.UserId] < BUILD_COOLDOWN) then
 			return
@@ -22,7 +22,6 @@ buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeT
 		cooldowns[player.UserId] = tick()
 
 		local snappedPos = snapToGrid(targetData)
-
 		local overlapParams = OverlapParams.new()
 		local boxSize = Vector3.new(BLOCK_SIZE - 0.5, BLOCK_SIZE - 0.5, BLOCK_SIZE - 0.5)
 		local hits = workspace:GetPartBoundsInBox(CFrame.new(snappedPos), boxSize, overlapParams)
@@ -49,10 +48,8 @@ buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeT
 		block.Name = "PlayerWall"
 		block.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
 		block.Anchored = true
-		block.Material = Enum.Material.SmoothPlastic
-		block.Color = Color3.fromRGB(0, 200, 255)
-
-		-- ★警告を消すために上限値の1.0に修正
+		block.Color = typeof(colorData) == "Color3" and colorData or Color3.fromRGB(0, 200, 255)
+		block.Material = typeof(matData) == "EnumItem" and matData or Enum.Material.SmoothPlastic
 		block.CustomPhysicalProperties = PhysicalProperties.new(0.5, 0.3, 1.0, 1.0, 1.0)
 
 		local yaw = 0
@@ -64,13 +61,18 @@ buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeT
 		end
 
 		local finalCFrame = CFrame.new(snappedPos) * CFrame.Angles(0, yaw, 0)
-
 		if shapeType == "Cylinder" then
 			finalCFrame = finalCFrame * CFrame.Angles(0, 0, math.pi / 2)
 		end
-
 		block.CFrame = finalCFrame
-		block.Parent = workspace
+
+		-- ★変更: ActiveMapがあればその中に入れ、マップ消去時に一緒に消えるようにする
+		local activeMap = workspace:FindFirstChild("ActiveMap")
+		if activeMap then
+			block.Parent = activeMap
+		else
+			block.Parent = workspace
+		end
 
 		local sound = Instance.new("Sound")
 		sound.SoundId = "rbxassetid://135549838877133"
@@ -78,28 +80,23 @@ buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeT
 		sound.Parent = block
 		sound:Play()
 	elseif actionType == "Destroy" then
-		-- ▼ 破壊処理 ▼
 		local targetBlock = targetData
 		if targetBlock and targetBlock.Name == "PlayerWall" then
 			local sound = Instance.new("Sound")
 			sound.SoundId = "rbxassetid://685857471"
 			sound.Volume = 0.8
-			-- ★エラーの原因だった position の指定を削除しました
 			sound.Parent = workspace
 			sound:Play()
 			Debris:AddItem(sound, 2)
 			targetBlock:Destroy()
 		end
 	elseif actionType == "Rotate" then
-		-- ▼ 回転処理 ▼
 		local targetBlock = targetData
 		if targetBlock and targetBlock.Name == "PlayerWall" then
 			targetBlock.CFrame = targetBlock.CFrame * CFrame.Angles(0, math.pi / 4, 0)
-
 			local sound = Instance.new("Sound")
 			sound.SoundId = "rbxassetid://12222084"
 			sound.Volume = 0.5
-			-- ★エラーの原因だった position の指定を削除しました
 			sound.Parent = workspace
 			sound:Play()
 			Debris:AddItem(sound, 2)

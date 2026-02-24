@@ -4,7 +4,6 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local Teams = game:GetService("Teams")
 
--- === 設定 ===
 local INTERMISSION_TIME = 10
 local WIN_SCORE = 5
 local ROUND_TIME = 180
@@ -37,20 +36,15 @@ if not cameraEvent then
 	cameraEvent.Parent = ReplicatedStorage
 end
 
--- ==============================================
--- === ★追加: マップ選択看板 (Map Board) システム ===
--- ==============================================
 local selectedMapIndex = 1
 local availableMaps = {
 	{ type = "Official", name = "Cyber City", mapName = "Map_City" },
 }
 
--- 看板を自動生成する
 local mapBoard = Instance.new("Part")
 mapBoard.Name = "MapSelectorBoard"
 mapBoard.Size = Vector3.new(12, 6, 1)
 
--- ★修正: ロビーのスポーン地点のすぐ目の前に配置して絶対に見えるようにする
 local lobbySpawn = Workspace:FindFirstChild("LobbySpawn", true)
 if lobbySpawn then
 	mapBoard.Position = lobbySpawn.Position + Vector3.new(0, 6, -15)
@@ -146,13 +140,10 @@ clickDetector.MouseClick:Connect(function()
 	game:GetService("Debris"):AddItem(sound, 1)
 end)
 
--- 起動時に一度リストを更新
 task.spawn(function()
-	task.wait(3) -- データストアの読み込みを待つ
+	task.wait(3)
 	refreshAvailableMaps()
 end)
-
--- ==============================================
 
 local function getPlayersInZone(joinZone)
 	local overlapParams = OverlapParams.new()
@@ -192,7 +183,6 @@ local function getModeAndPlayers()
 			end
 		end
 	end
-
 	return bestMode, bestPlayers, bestColor
 end
 
@@ -202,21 +192,17 @@ end
 
 local function teleportToLobby()
 	local lobbySpawn = Workspace:FindFirstChild("LobbySpawn", true)
-
 	for _, player in ipairs(Players:GetPlayers()) do
 		if player.Team ~= nil then
 			player.Team = nil
 		end
 		player:LoadCharacter()
 	end
-
 	for _, child in ipairs(Workspace:GetChildren()) do
 		if child.Name == "Dummy" and child:FindFirstChild("Humanoid") then
 			child:Destroy()
 		end
 	end
-
-	-- ロビーに戻った時に最新のステージリストを更新する
 	task.spawn(refreshAvailableMaps)
 end
 
@@ -231,7 +217,6 @@ local function teleportToArena(players)
 	end
 
 	if #spawns == 0 then
-		warn("No spawns found in map!")
 		return
 	end
 
@@ -259,10 +244,10 @@ local function loadMap(mapName)
 	end
 	local mapTemplate = MapsFolder:FindFirstChild(mapName)
 	if not mapTemplate then
-		warn("Map not found: " .. mapName)
 		return
 	end
 	CurrentMap = mapTemplate:Clone()
+	CurrentMap.Name = "ActiveMap" -- ★重要: ロードしたマップの名前を統一
 	CurrentMap.Parent = Workspace
 end
 
@@ -287,10 +272,8 @@ local function startRound(mode, participants)
 	elseif gameMode == "BUILD" then
 		broadcast("MODE: BUILD BATTLE", Color3.new(1, 0.9, 0.2))
 	end
-
 	task.wait(3)
 
-	-- ★変更: 看板で現在選ばれているマップをロードする
 	local targetMap = availableMaps[selectedMapIndex]
 
 	if targetMap.type == "Community" then
@@ -300,7 +283,8 @@ local function startRound(mode, participants)
 		)
 		task.wait(3)
 
-		loadMap("Map_City") -- ベースとしてCityを読み込む
+		-- ★変更: コミュニティマップの時は、作った専用ステージをロードする
+		loadMap("Map_BuildBase")
 
 		local getStageByIdBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageById")
 		local stageInfo = nil
@@ -327,8 +311,22 @@ local function startRound(mode, participants)
 				block.Name = "PlayerWall"
 				block.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
 				block.Anchored = true
-				block.Material = Enum.Material.SmoothPlastic
-				block.Color = Color3.fromRGB(0, 200, 255)
+
+				-- ★追加: 保存された色と素材を復元
+				if data.color then
+					block.Color = Color3.new(data.color[1], data.color[2], data.color[3])
+				else
+					block.Color = Color3.fromRGB(0, 200, 255)
+				end
+				if data.material then
+					local s, mat = pcall(function()
+						return Enum.Material[data.material]
+					end)
+					block.Material = s and mat or Enum.Material.SmoothPlastic
+				else
+					block.Material = Enum.Material.SmoothPlastic
+				end
+
 				block.CustomPhysicalProperties = PhysicalProperties.new(0.5, 0.3, 1.0, 1.0, 1.0)
 				block.CFrame = CFrame.new(
 					data.cx,
@@ -353,7 +351,6 @@ local function startRound(mode, participants)
 			end
 		end
 	else
-		-- Official（Cyber City）の場合
 		broadcast("MAP: " .. string.upper(targetMap.name), Color3.new(0.8, 1, 0.8))
 		task.wait(3)
 		loadMap(targetMap.mapName)
@@ -401,11 +398,9 @@ local function gameLoop()
 			task.wait(1)
 		else
 			local countdownCancelled = false
-
 			for i = INTERMISSION_TIME, 1, -1 do
 				broadcast(bestMode .. " starts in " .. i .. " (" .. readyCount .. " players)", modeColor)
 				task.wait(1)
-
 				local currentMode, currentPlayers = getModeAndPlayers()
 				if currentMode ~= bestMode or #currentPlayers == 0 then
 					countdownCancelled = true
@@ -413,7 +408,6 @@ local function gameLoop()
 				end
 				readyCount = #currentPlayers
 			end
-
 			if not countdownCancelled and readyCount >= 1 then
 				startRound(bestMode, readyPlayers)
 			end
@@ -425,7 +419,6 @@ local function onHumanoidDied(humanoid, player)
 	if not isMatchActive then
 		return
 	end
-
 	local creatorTag = humanoid:FindFirstChild("creator")
 	if creatorTag and creatorTag.Value then
 		local killer = creatorTag.Value
@@ -435,11 +428,9 @@ local function onHumanoidDied(humanoid, player)
 		elseif killer:IsA("Model") then
 			killerChar = killer
 		end
-
 		if killerChar then
 			cameraEvent:FireClient(player, "Kill", killerChar)
 		end
-
 		if killer:IsA("Player") and killer ~= player then
 			if gameMode == "TDM" and killer.Team == player.Team and player.Team ~= nil then
 				return

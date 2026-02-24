@@ -10,17 +10,25 @@ local SPACING = 85
 local BASE_OFFSET_X = -180
 local BASE_OFFSET_Y = -140
 
+-- ★変更: ボタンが重ならないように座標(relX, relY)を綺麗に並べ替えました
 local CONTROLS = {
 	{ action = "SprintAction", label = "DASH", relX = 0, relY = 0 },
-	{ action = "FireAction", label = "FIRE", relX = 0, relY = -1 },
-	{ action = "ReloadAction", label = "RLD", relX = -1, relY = 0 },
-	{ action = "BuildAction", label = "BUILD", relX = 0, relY = -1 },
-	{ action = "DestroyAction", label = "BREAK", relX = -1, relY = -1 },
-	{ action = "ToggleShapeAction", label = "SHAPE", relX = 0, relY = -2 },
 	{ action = "CrouchAction", label = "SLIDE", relX = 1, relY = 0 },
+
+	-- 射撃／建築系（右下寄り）
+	{ action = "FireAction", label = "FIRE", relX = 0, relY = -1 },
+	{ action = "ReloadOrRotateAction", label = "RLD", relX = -1, relY = -1 },
+	{ action = "DestroyAction", label = "BREAK", relX = -2, relY = -1 },
+
+	-- 切り替え系（中央寄り）
+	{ action = "ToggleShapeAction", label = "SHAPE", relX = 0, relY = -2 },
+	{ action = "ToggleColorAction", label = "COLOR", relX = -1, relY = -2 },
+	{ action = "ToggleMaterialAction", label = "MAT", relX = -2, relY = -2 },
+
+	-- システム系（右上寄り）
 	{ action = "SaveAction", label = "SAVE", relX = 1, relY = -1 },
 	{ action = "LoadAction", label = "LOAD", relX = 1, relY = -2 },
-	{ action = "PublishAction", label = "PUBLISH", relX = 1, relY = 0 }, -- ★追加
+	{ action = "PublishAction", label = "PUBLISH", relX = 1, relY = -3 },
 }
 
 local function updateLayout()
@@ -35,7 +43,6 @@ local function updateLayout()
 
 	for _, ctrl in ipairs(CONTROLS) do
 		local btn = ContextActionService:GetButton(ctrl.action)
-
 		if btn then
 			local x = BASE_OFFSET_X + (ctrl.relX * SPACING)
 			local y = BASE_OFFSET_Y + (ctrl.relY * SPACING)
@@ -43,7 +50,6 @@ local function updateLayout()
 			btn.Position = UDim2.new(1, x, 1, y)
 			btn.Size = UDim2.new(0, BTN_SIZE, 0, BTN_SIZE)
 			btn.AnchorPoint = Vector2.new(0.5, 0.5)
-
 			btn.Style = Enum.ButtonStyle.Custom
 			btn.Image = ""
 			btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
@@ -70,19 +76,21 @@ local function updateLayout()
 				titleLabel.ZIndex = 1001
 			end
 
+			-- ★変更: ガンとビルドツールでの表示切り替えを最適化
 			if not isReady then
 				btn.Visible = false
-			elseif ctrl.action == "FireAction" or ctrl.action == "ReloadAction" then
-				btn.Visible = hasGun
+			elseif ctrl.action == "FireAction" or ctrl.action == "ReloadOrRotateAction" then
+				btn.Visible = hasGun or hasBuild
 			elseif
-				ctrl.action == "BuildAction"
-				or ctrl.action == "DestroyAction"
+				ctrl.action == "DestroyAction"
 				or ctrl.action == "ToggleShapeAction"
+				or ctrl.action == "ToggleColorAction"
+				or ctrl.action == "ToggleMaterialAction"
 				or ctrl.action == "SaveAction"
 				or ctrl.action == "LoadAction"
 				or ctrl.action == "PublishAction"
 			then
-				btn.Visible = hasBuild -- ビルドツール関連
+				btn.Visible = hasBuild
 			else
 				btn.Visible = true
 			end

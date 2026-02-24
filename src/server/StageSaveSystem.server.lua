@@ -29,14 +29,10 @@ local loadEvent = getRemote("LoadStageEvent")
 local publishEvent = getRemote("PublishStageEvent")
 local messageEvent = getRemote("GameMessage")
 
--- ★変更: リスト取得とID指定ロード用のBindable
 local getStageListBindable = getBindable("GetCommunityStageList")
 local getStageByIdBindable = getBindable("GetCommunityStageById")
 
 local BLOCK_SIZE = 4
-
--- === ★追加: ステージリストのキャッシュ機能 ===
--- 毎回データベースを検索すると制限に引っかかるため、サーバー内にリストを保持します
 local communityStageListCache = {}
 
 local function refreshStageListCache()
@@ -44,7 +40,6 @@ local function refreshStageListCache()
 	local success, count = pcall(function()
 		return CommunityDataStore:GetAsync("CommunityStageCount") or 0
 	end)
-
 	if success and count > 0 then
 		for i = 1, count do
 			local info
@@ -59,49 +54,66 @@ local function refreshStageListCache()
 	communityStageListCache = list
 end
 
--- 起動時に一度読み込む
 task.spawn(refreshStageListCache)
 
--- === 既存のセーブ処理 ===
+-- ★追加: ブロックを探す専用の関数
+local function getTargetBlocks()
+	local blocks = {}
+	local activeMap = workspace:FindFirstChild("ActiveMap")
+	if activeMap then
+		for _, child in ipairs(activeMap:GetChildren()) do
+			if child.Name == "PlayerWall" then
+				table.insert(blocks, child)
+			end
+		end
+	end
+	-- 念のためworkspace直下も探す
+	for _, child in ipairs(workspace:GetChildren()) do
+		if child.Name == "PlayerWall" then
+			table.insert(blocks, child)
+		end
+	end
+	return blocks
+end
+
 saveEvent.OnServerEvent:Connect(function(player)
 	local stageData = {}
 	local blockCount = 0
 
-	for _, block in ipairs(workspace:GetChildren()) do
-		if block.Name == "PlayerWall" then
-			local shapeType = "Block"
-			if block:IsA("WedgePart") then
-				shapeType = "Wedge"
-			elseif block.Shape == Enum.PartType.Cylinder then
-				shapeType = "Cylinder"
-			elseif block.Shape == Enum.PartType.Ball then
-				shapeType = "Sphere"
-			end
-
-			local cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = block.CFrame:GetComponents()
-			table.insert(stageData, {
-				cx = cx,
-				cy = cy,
-				cz = cz,
-				r00 = r00,
-				r01 = r01,
-				r02 = r02,
-				r10 = r10,
-				r11 = r11,
-				r12 = r12,
-				r20 = r20,
-				r21 = r21,
-				r22 = r22,
-				shape = shapeType,
-			})
-			blockCount = blockCount + 1
+	for _, block in ipairs(getTargetBlocks()) do
+		local shapeType = "Block"
+		if block:IsA("WedgePart") then
+			shapeType = "Wedge"
+		elseif block.Shape == Enum.PartType.Cylinder then
+			shapeType = "Cylinder"
+		elseif block.Shape == Enum.PartType.Ball then
+			shapeType = "Sphere"
 		end
+
+		local cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = block.CFrame:GetComponents()
+		table.insert(stageData, {
+			cx = cx,
+			cy = cy,
+			cz = cz,
+			r00 = r00,
+			r01 = r01,
+			r02 = r02,
+			r10 = r10,
+			r11 = r11,
+			r12 = r12,
+			r20 = r20,
+			r21 = r21,
+			r22 = r22,
+			shape = shapeType,
+			color = { block.Color.R, block.Color.G, block.Color.B },
+			material = block.Material.Name,
+		})
+		blockCount = blockCount + 1
 	end
 
 	local success, errorMessage = pcall(function()
 		StageDataStore:SetAsync(player.UserId .. "_MyStage", stageData)
 	end)
-
 	if success then
 		messageEvent:FireClient(player, "SAVED " .. blockCount .. " BLOCKS!", Color3.new(0.2, 1, 0.2))
 	else
@@ -109,7 +121,6 @@ saveEvent.OnServerEvent:Connect(function(player)
 	end
 end)
 
--- === 既存のロード処理 ===
 loadEvent.OnServerEvent:Connect(function(player)
 	local stageData
 	local success, errorMessage = pcall(function()
@@ -117,11 +128,11 @@ loadEvent.OnServerEvent:Connect(function(player)
 	end)
 
 	if success and stageData then
-		for _, block in ipairs(workspace:GetChildren()) do
-			if block.Name == "PlayerWall" then
-				block:Destroy()
-			end
+		for _, block in ipairs(getTargetBlocks()) do
+			block:Destroy()
 		end
+
+		local activeMap = workspace:FindFirstChild("ActiveMap")
 
 		for _, data in ipairs(stageData) do
 			local block
@@ -141,8 +152,22 @@ loadEvent.OnServerEvent:Connect(function(player)
 			block.Name = "PlayerWall"
 			block.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
 			block.Anchored = true
-			block.Material = Enum.Material.SmoothPlastic
-			block.Color = Color3.fromRGB(0, 200, 255)
+
+			if data.color then
+				block.Color = Color3.new(data.color[1], data.color[2], data.color[3])
+			else
+				block.Color = Color3.fromRGB(0, 200, 255)
+			end
+
+			if data.material then
+				local s, mat = pcall(function()
+					return Enum.Material[data.material]
+				end)
+				block.Material = s and mat or Enum.Material.SmoothPlastic
+			else
+				block.Material = Enum.Material.SmoothPlastic
+			end
+
 			block.CustomPhysicalProperties = PhysicalProperties.new(0.5, 0.3, 1.0, 1.0, 1.0)
 			block.CFrame = CFrame.new(
 				data.cx,
@@ -158,7 +183,12 @@ loadEvent.OnServerEvent:Connect(function(player)
 				data.r21,
 				data.r22
 			)
-			block.Parent = workspace
+
+			if activeMap then
+				block.Parent = activeMap
+			else
+				block.Parent = workspace
+			end
 		end
 		messageEvent:FireClient(player, "STAGE LOADED!", Color3.new(0.2, 1, 0.2))
 	else
@@ -166,40 +196,39 @@ loadEvent.OnServerEvent:Connect(function(player)
 	end
 end)
 
--- === PUBLISH（公開）処理 ===
 publishEvent.OnServerEvent:Connect(function(player)
 	local stageData = {}
 	local blockCount = 0
 
-	for _, block in ipairs(workspace:GetChildren()) do
-		if block.Name == "PlayerWall" then
-			local shapeType = "Block"
-			if block:IsA("WedgePart") then
-				shapeType = "Wedge"
-			elseif block.Shape == Enum.PartType.Cylinder then
-				shapeType = "Cylinder"
-			elseif block.Shape == Enum.PartType.Ball then
-				shapeType = "Sphere"
-			end
-
-			local cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = block.CFrame:GetComponents()
-			table.insert(stageData, {
-				cx = cx,
-				cy = cy,
-				cz = cz,
-				r00 = r00,
-				r01 = r01,
-				r02 = r02,
-				r10 = r10,
-				r11 = r11,
-				r12 = r12,
-				r20 = r20,
-				r21 = r21,
-				r22 = r22,
-				shape = shapeType,
-			})
-			blockCount = blockCount + 1
+	for _, block in ipairs(getTargetBlocks()) do
+		local shapeType = "Block"
+		if block:IsA("WedgePart") then
+			shapeType = "Wedge"
+		elseif block.Shape == Enum.PartType.Cylinder then
+			shapeType = "Cylinder"
+		elseif block.Shape == Enum.PartType.Ball then
+			shapeType = "Sphere"
 		end
+
+		local cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = block.CFrame:GetComponents()
+		table.insert(stageData, {
+			cx = cx,
+			cy = cy,
+			cz = cz,
+			r00 = r00,
+			r01 = r01,
+			r02 = r02,
+			r10 = r10,
+			r11 = r11,
+			r12 = r12,
+			r20 = r20,
+			r21 = r21,
+			r22 = r22,
+			shape = shapeType,
+			color = { block.Color.R, block.Color.G, block.Color.B },
+			material = block.Material.Name,
+		})
+		blockCount = blockCount + 1
 	end
 
 	if blockCount == 0 then
@@ -211,25 +240,23 @@ publishEvent.OnServerEvent:Connect(function(player)
 		local newCount = CommunityDataStore:UpdateAsync("CommunityStageCount", function(oldValue)
 			return (oldValue or 0) + 1
 		end)
-		CommunityDataStore:SetAsync("CommunityStage_" .. tostring(newCount), {
-			creatorName = player.Name,
-			data = stageData,
-		})
+		CommunityDataStore:SetAsync(
+			"CommunityStage_" .. tostring(newCount),
+			{ creatorName = player.Name, data = stageData }
+		)
 	end)
 
 	if success then
-		task.spawn(refreshStageListCache) -- 公開したらリストを更新
+		task.spawn(refreshStageListCache)
 		messageEvent:FireClient(player, "PUBLISHED TO COMMUNITY!", Color3.new(1, 0.5, 0))
 	else
 		messageEvent:FireClient(player, "PUBLISH FAILED", Color3.new(1, 0, 0))
 	end
 end)
 
--- ★追加: GameLoopからの要求に応える処理
 getStageListBindable.OnInvoke = function()
 	return communityStageListCache
 end
-
 getStageByIdBindable.OnInvoke = function(id)
 	local stageInfo
 	local success = pcall(function()
@@ -240,5 +267,3 @@ getStageByIdBindable.OnInvoke = function(id)
 	end
 	return nil
 end
-
-print("Server: StageSaveSystem Loaded (With List Support)")
