@@ -36,9 +36,11 @@ if not cameraEvent then
 	cameraEvent.Parent = ReplicatedStorage
 end
 
+-- ★変更: 初期リストに「Empty Canvas（何もないステージ）」を追加！
 local selectedMapIndex = 1
 local availableMaps = {
 	{ type = "Official", name = "Cyber City", mapName = "Map_City" },
+	{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
 }
 
 local mapBoard = Instance.new("Part")
@@ -100,8 +102,10 @@ local function updateBoardDisplay()
 end
 
 local function refreshAvailableMaps()
+	-- ★変更: 更新時にもリストに「Empty Canvas」を含める
 	local newList = {
 		{ type = "Official", name = "Cyber City", mapName = "Map_City" },
+		{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
 	}
 
 	local getStageListBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageList")
@@ -247,7 +251,7 @@ local function loadMap(mapName)
 		return
 	end
 	CurrentMap = mapTemplate:Clone()
-	CurrentMap.Name = "ActiveMap" -- ★重要: ロードしたマップの名前を統一
+	CurrentMap.Name = "ActiveMap"
 	CurrentMap.Parent = Workspace
 end
 
@@ -283,7 +287,6 @@ local function startRound(mode, participants)
 		)
 		task.wait(3)
 
-		-- ★変更: コミュニティマップの時は、作った専用ステージをロードする
 		loadMap("Map_BuildBase")
 
 		local getStageByIdBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageById")
@@ -312,7 +315,6 @@ local function startRound(mode, participants)
 				block.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
 				block.Anchored = true
 
-				-- ★追加: 保存された色と素材を復元
 				if data.color then
 					block.Color = Color3.new(data.color[1], data.color[2], data.color[3])
 				else
@@ -351,6 +353,7 @@ local function startRound(mode, participants)
 			end
 		end
 	else
+		-- Official（Cyber City または Empty Canvas）の場合
 		broadcast("MAP: " .. string.upper(targetMap.name), Color3.new(0.8, 1, 0.8))
 		task.wait(3)
 		loadMap(targetMap.mapName)
