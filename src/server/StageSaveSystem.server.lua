@@ -32,7 +32,7 @@ local messageEvent = getRemote("GameMessage")
 local getStageListBindable = getBindable("GetCommunityStageList")
 local getStageByIdBindable = getBindable("GetCommunityStageById")
 
-local BLOCK_SIZE = 4
+local BLOCK_SIZE = 2
 local communityStageListCache = {}
 
 local function refreshStageListCache()
@@ -84,10 +84,6 @@ saveEvent.OnServerEvent:Connect(function(player)
 		local shapeType = "Block"
 		if block:IsA("WedgePart") then
 			shapeType = "Wedge"
-		elseif block.Shape == Enum.PartType.Cylinder then
-			shapeType = "Cylinder"
-		elseif block.Shape == Enum.PartType.Ball then
-			shapeType = "Sphere"
 		end
 
 		local cx, cy, cz, r00, r01, r02, r10, r11, r12, r20, r21, r22 = block.CFrame:GetComponents()
@@ -140,13 +136,7 @@ loadEvent.OnServerEvent:Connect(function(player)
 				block = Instance.new("WedgePart")
 			else
 				block = Instance.new("Part")
-				if data.shape == "Cylinder" then
-					block.Shape = Enum.PartType.Cylinder
-				elseif data.shape == "Sphere" then
-					block.Shape = Enum.PartType.Ball
-				else
-					block.Shape = Enum.PartType.Block
-				end
+				block.Shape = Enum.PartType.Block
 			end
 
 			block.Name = "PlayerWall"

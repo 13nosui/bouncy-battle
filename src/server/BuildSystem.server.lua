@@ -5,7 +5,7 @@ local buildEvent = ReplicatedStorage:WaitForChild("BuildEvent")
 
 local cooldowns = {}
 local BUILD_COOLDOWN = 0.2
-local BLOCK_SIZE = 4
+local BLOCK_SIZE = 2
 
 local function snapToGrid(position)
 	local x = math.floor(position.X / BLOCK_SIZE) * BLOCK_SIZE + (BLOCK_SIZE / 2)
@@ -36,13 +36,7 @@ buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeT
 			block = Instance.new("WedgePart")
 		else
 			block = Instance.new("Part")
-			if shapeType == "Cylinder" then
-				block.Shape = Enum.PartType.Cylinder
-			elseif shapeType == "Sphere" then
-				block.Shape = Enum.PartType.Ball
-			else
-				block.Shape = Enum.PartType.Block
-			end
+			block.Shape = Enum.PartType.Block
 		end
 
 		block.Name = "PlayerWall"
@@ -61,9 +55,6 @@ buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeT
 		end
 
 		local finalCFrame = CFrame.new(snappedPos) * CFrame.Angles(0, yaw, 0)
-		if shapeType == "Cylinder" then
-			finalCFrame = finalCFrame * CFrame.Angles(0, 0, math.pi / 2)
-		end
 		block.CFrame = finalCFrame
 
 		-- ★変更: ActiveMapがあればその中に入れ、マップ消去時に一緒に消えるようにする

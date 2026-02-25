@@ -16,7 +16,7 @@ local buildEvent = ReplicatedStorage:WaitForChild("BuildEvent")
 
 local CROSSHAIR_IMAGE = "rbxassetid://128000667256203"
 local CROSSHAIR_SIZE = 80
-local BLOCK_SIZE = 4
+local BLOCK_SIZE = 2
 
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "CrosshairGui"
@@ -33,7 +33,7 @@ crosshair.AnchorPoint = Vector2.new(0.5, 0.5)
 crosshair.Position = UDim2.new(0.5, 0, 0.5, 0)
 crosshair.Parent = screenGui
 
-local SHAPES = { "Block", "Wedge", "Cylinder", "Sphere" }
+local SHAPES = { "Block", "Wedge" }
 local COLORS = {
 	{ name = "CYAN", val = Color3.fromRGB(0, 200, 255) },
 	{ name = "RED", val = Color3.fromRGB(255, 50, 50) },

@@ -319,20 +319,14 @@ local function startRound(mode, participants)
 		end
 
 		if stageInfo and stageInfo.data then
-			local BLOCK_SIZE = 4
+			local BLOCK_SIZE = 2
 			for _, data in ipairs(stageInfo.data) do
 				local block
 				if data.shape == "Wedge" then
 					block = Instance.new("WedgePart")
 				else
 					block = Instance.new("Part")
-					if data.shape == "Cylinder" then
-						block.Shape = Enum.PartType.Cylinder
-					elseif data.shape == "Sphere" then
-						block.Shape = Enum.PartType.Ball
-					else
-						block.Shape = Enum.PartType.Block
-					end
+					block.Shape = Enum.PartType.Block
 				end
 				block.Name = "PlayerWall"
 				block.Size = Vector3.new(BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE)
