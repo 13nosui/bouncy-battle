@@ -21,6 +21,7 @@ local BLOCK_SIZE = 2
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "CrosshairGui"
 screenGui.IgnoreGuiInset = true
+screenGui.ResetOnSpawn = false
 screenGui.Parent = player:WaitForChild("PlayerGui")
 screenGui.Enabled = false
 
@@ -96,8 +97,84 @@ materialLabel.TextSize = 20
 materialLabel.Text = "MAT: " .. MATERIALS[currentMaterialIndex].name
 materialLabel.Parent = screenGui
 
+-- ==========================================
+-- ★追加: PC版ビルド用 左側UIパネル（ボタン＆ショートカット一覧）
+-- ==========================================
+local pcControlsFrame = Instance.new("Frame")
+pcControlsFrame.Name = "PCControlsFrame"
+pcControlsFrame.Size = UDim2.new(0, 180, 0, 350)
+pcControlsFrame.Position = UDim2.new(0, 20, 0.5, 0)
+pcControlsFrame.AnchorPoint = Vector2.new(0, 0.5)
+pcControlsFrame.BackgroundTransparency = 1
+pcControlsFrame.Parent = screenGui
+pcControlsFrame.Visible = false
+
+local uiListLayout = Instance.new("UIListLayout")
+uiListLayout.Padding = UDim.new(0, 8)
+uiListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+uiListLayout.Parent = pcControlsFrame
+
+local pcButtons = {}
+
+local function createPCButton(text, order, actionName)
+	local btn = Instance.new("TextButton")
+	btn.Name = actionName
+	btn.Size = UDim2.new(1, 0, 0, 35)
+	btn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	btn.BackgroundTransparency = 0.4
+	btn.LayoutOrder = order
+	btn.Text = ""
+	btn.AutoButtonColor = false
+	btn.Parent = pcControlsFrame
+
+	local corner = Instance.new("UICorner")
+	corner.CornerRadius = UDim.new(0, 6)
+	corner.Parent = btn
+
+	local stroke = Instance.new("UIStroke")
+	stroke.Color = Color3.fromRGB(200, 200, 200)
+	stroke.Transparency = 0.7
+	stroke.Thickness = 1
+	stroke.Parent = btn
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.Text = text
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.Font = Enum.Font.GothamBold
+	label.TextSize = 14
+	label.Parent = btn
+
+	pcButtons[actionName] = btn
+	return btn
+end
+
+-- 各ボタンの生成
+createPCButton("[ R ]  ROTATE", 1, "ReloadOrRotateAction")
+createPCButton("[ F ]  SHAPE", 2, "ToggleShapeAction")
+createPCButton("[ G ]  COLOR", 3, "ToggleColorAction")
+createPCButton("[ V ]  MATERIAL", 4, "ToggleMaterialAction")
+createPCButton("[ J ]  SAVE", 5, "SaveAction")
+createPCButton("[ K ]  LOAD", 6, "LoadAction")
+createPCButton("[ P ]  PUBLISH", 7, "PublishAction")
+
+-- 押した時のフラッシュ（光る）エフェクト
+local function flashButton(actionName)
+	local btn = pcButtons[actionName]
+	if btn then
+		local originalColor = Color3.fromRGB(20, 20, 20)
+		local flashColor = Color3.fromRGB(255, 255, 255)
+		btn.BackgroundColor3 = flashColor
+		btn.BackgroundTransparency = 0.1
+		TweenService:Create(btn, TweenInfo.new(0.3), { BackgroundColor3 = originalColor, BackgroundTransparency = 0.4 })
+			:Play()
+	end
+end
+
 local isEquipped = false
 local isBuildEquipped = false
+local isMouseFree = false -- ★追加: Altキーでマウスを解放するフラグ
 
 local function getRayResult()
 	local rayParams = RaycastParams.new()
@@ -151,6 +228,7 @@ local function handleReloadOrRotate(actionName, inputState, inputObject)
 			return Enum.ContextActionResult.Sink
 		elseif isBuildEquipped then
 			tryRotate()
+			flashButton("ReloadOrRotateAction")
 			return Enum.ContextActionResult.Sink
 		end
 	end
@@ -181,6 +259,7 @@ local function handleSave(actionName, inputState, inputObject)
 		if saveEvent then
 			saveEvent:FireServer()
 		end
+		flashButton("SaveAction")
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
@@ -192,6 +271,7 @@ local function handleLoad(actionName, inputState, inputObject)
 		if loadEvent then
 			loadEvent:FireServer()
 		end
+		flashButton("LoadAction")
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
@@ -203,6 +283,7 @@ local function handlePublish(actionName, inputState, inputObject)
 		if publishEvent then
 			publishEvent:FireServer()
 		end
+		flashButton("PublishAction")
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
@@ -217,6 +298,7 @@ local function handleToggleShape(actionName, inputState, inputObject)
 		shapeLabel.Text = "SHAPE: " .. string.upper(SHAPES[currentShapeIndex])
 		shapeLabel.TextSize = 26
 		TweenService:Create(shapeLabel, TweenInfo.new(0.2), { TextSize = 20 }):Play()
+		flashButton("ToggleShapeAction")
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
@@ -232,6 +314,7 @@ local function handleToggleColor(actionName, inputState, inputObject)
 		colorLabel.TextColor3 = COLORS[currentColorIndex].val
 		colorLabel.TextSize = 26
 		TweenService:Create(colorLabel, TweenInfo.new(0.2), { TextSize = 20 }):Play()
+		flashButton("ToggleColorAction")
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
@@ -246,21 +329,59 @@ local function handleToggleMaterial(actionName, inputState, inputObject)
 		materialLabel.Text = "MAT: " .. MATERIALS[currentMaterialIndex].name
 		materialLabel.TextSize = 26
 		TweenService:Create(materialLabel, TweenInfo.new(0.2), { TextSize = 20 }):Play()
+		flashButton("ToggleMaterialAction")
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
 end
 
+-- ★追加: UIボタンを直接クリックした時の処理
+for actionName, btn in pairs(pcButtons) do
+	btn.MouseButton1Click:Connect(function()
+		if not isBuildEquipped then
+			return
+		end
+		if actionName == "ToggleShapeAction" then
+			handleToggleShape(actionName, Enum.UserInputState.Begin, nil)
+		elseif actionName == "ToggleColorAction" then
+			handleToggleColor(actionName, Enum.UserInputState.Begin, nil)
+		elseif actionName == "ToggleMaterialAction" then
+			handleToggleMaterial(actionName, Enum.UserInputState.Begin, nil)
+		elseif actionName == "SaveAction" then
+			handleSave(actionName, Enum.UserInputState.Begin, nil)
+		elseif actionName == "LoadAction" then
+			handleLoad(actionName, Enum.UserInputState.Begin, nil)
+		elseif actionName == "PublishAction" then
+			handlePublish(actionName, Enum.UserInputState.Begin, nil)
+		elseif actionName == "ReloadOrRotateAction" then
+			handleReloadOrRotate(actionName, Enum.UserInputState.Begin, nil)
+		end
+	end)
+end
+
+-- ★変更: Altキーでマウス解放対応
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if input.KeyCode == Enum.KeyCode.LeftAlt then
+		isMouseFree = true
+	end
+
 	if gameProcessed then
 		return
 	end
+
 	if isBuildEquipped then
 		if input.KeyCode == Enum.KeyCode.E then
 			tryDestroy()
 		elseif input.KeyCode == Enum.KeyCode.R then
 			tryRotate()
+			flashButton("ReloadOrRotateAction")
 		end
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+	if input.KeyCode == Enum.KeyCode.LeftAlt then
+		isMouseFree = false
 	end
 end)
 
@@ -313,7 +434,7 @@ ContextActionService:BindAction(
 	Enum.KeyCode.ButtonL2
 )
 ContextActionService:BindAction("ToggleShapeAction", handleToggleShape, true, Enum.KeyCode.F, Enum.KeyCode.DPadUp)
-ContextActionService:BindAction("ToggleColorAction", handleToggleColor, true, Enum.KeyCode.G) -- ★Gキーに変更
+ContextActionService:BindAction("ToggleColorAction", handleToggleColor, true, Enum.KeyCode.G)
 ContextActionService:BindAction("ToggleMaterialAction", handleToggleMaterial, true, Enum.KeyCode.V)
 ContextActionService:BindAction("SaveAction", handleSave, true, Enum.KeyCode.J, Enum.KeyCode.DPadRight)
 ContextActionService:BindAction("LoadAction", handleLoad, true, Enum.KeyCode.K, Enum.KeyCode.DPadDown)
@@ -336,8 +457,7 @@ local function onGunEquip()
 	shapeLabel.Visible = false
 	colorLabel.Visible = false
 	materialLabel.Visible = false
-	UserInputService.MouseIconEnabled = false
-	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+	pcControlsFrame.Visible = false -- 武器装備時は隠す
 
 	ContextActionService:SetTitle("FireAction", "FIRE")
 	ContextActionService:SetTitle("ReloadOrRotateAction", "RLD")
@@ -347,6 +467,7 @@ local function onGunUnequip()
 	isEquipped = false
 	if not isBuildEquipped then
 		screenGui.Enabled = false
+		-- ★復活: ツールをしまった時に1回だけマウス状態をリセットする
 		UserInputService.MouseIconEnabled = true
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end
@@ -358,14 +479,15 @@ local function onBuildEquip()
 	shapeLabel.Visible = true
 	colorLabel.Visible = true
 	materialLabel.Visible = true
-	UserInputService.MouseIconEnabled = false
-	UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+
+	-- ★修正: 判定を消して「ツールを持ったら絶対に表示する」ようにしました！
+	pcControlsFrame.Visible = true
 
 	ContextActionService:SetTitle("FireAction", "BUILD")
 	ContextActionService:SetTitle("ReloadOrRotateAction", "ROTATE")
 	ContextActionService:SetTitle("DestroyAction", "BREAK")
 	ContextActionService:SetTitle("ToggleShapeAction", "SHAPE")
-	ContextActionService:SetTitle("ToggleColorAction", "COLOR(G)") -- ★Gに変更
+	ContextActionService:SetTitle("ToggleColorAction", "COLOR(G)")
 	ContextActionService:SetTitle("ToggleMaterialAction", "MAT(V)")
 	ContextActionService:SetTitle("SaveAction", "SAVE(J)")
 	ContextActionService:SetTitle("LoadAction", "LOAD(K)")
@@ -374,8 +496,10 @@ end
 
 local function onBuildUnequip()
 	isBuildEquipped = false
+	pcControlsFrame.Visible = false -- ツールをしまったら隠す
 	if not isEquipped then
 		screenGui.Enabled = false
+		-- ★復活: ツールをしまった時に1回だけマウス状態をリセットする
 		UserInputService.MouseIconEnabled = true
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end
@@ -388,6 +512,7 @@ player.CharacterAdded:Connect(function(char)
 	shapeLabel.Visible = false
 	colorLabel.Visible = false
 	materialLabel.Visible = false
+	pcControlsFrame.Visible = false
 	UserInputService.MouseIconEnabled = true
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 
@@ -416,9 +541,16 @@ if player.Character then
 	end
 end
 
+-- ★修正: 非装備時はRoblox標準のカメラ操作を邪魔しないように、何もしない(elseを削除)
 RunService.RenderStepped:Connect(function()
 	if isEquipped or isBuildEquipped then
-		UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+		if isMouseFree then
+			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+			UserInputService.MouseIconEnabled = true
+		else
+			UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+			UserInputService.MouseIconEnabled = false
+		end
 	end
 end)
 

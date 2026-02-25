@@ -255,8 +255,6 @@ local function loadMap(mapName)
 	-- ==========================================
 	-- ★超高精度オート・グリッドアライメント（レーザー方式）
 	-- ==========================================
-	-- スポーン地点の少し上から真下にレーザーを撃ち、
-	-- プレイヤーが立つ「床」の正確な高さを測ってグリッドにスライドさせます
 	local spawnLoc = CurrentMap:FindFirstChildWhichIsA("SpawnLocation", true)
 	local origin = spawnLoc and (spawnLoc.Position + Vector3.new(0, 5, 0)) or Vector3.new(0, 100, 0)
 
@@ -268,11 +266,13 @@ local function loadMap(mapName)
 
 	if result then
 		local topY = result.Position.Y
-		local nearestGridY = math.round(topY / 4) * 4
+
+		-- ★変更: ブロックサイズに合わせて「4」から「2」に変更！
+		local BLOCK_SIZE = 2
+		local nearestGridY = math.round(topY / BLOCK_SIZE) * BLOCK_SIZE
 		local offset = nearestGridY - topY
 
 		if math.abs(offset) > 0.001 then
-			-- マップ全体をそのままの形で綺麗にスライドさせる
 			CurrentMap:PivotTo(CurrentMap:GetPivot() + Vector3.new(0, offset, 0))
 		end
 	end
