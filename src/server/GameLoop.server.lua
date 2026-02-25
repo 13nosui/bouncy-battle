@@ -36,7 +36,6 @@ if not cameraEvent then
 	cameraEvent.Parent = ReplicatedStorage
 end
 
--- ★変更: 初期リストに「Empty Canvas（何もないステージ）」を追加！
 local selectedMapIndex = 1
 local availableMaps = {
 	{ type = "Official", name = "Cyber City", mapName = "Map_City" },
@@ -102,7 +101,6 @@ local function updateBoardDisplay()
 end
 
 local function refreshAvailableMaps()
-	-- ★変更: 更新時にもリストに「Empty Canvas」を含める
 	local newList = {
 		{ type = "Official", name = "Cyber City", mapName = "Map_City" },
 		{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
@@ -253,6 +251,31 @@ local function loadMap(mapName)
 	CurrentMap = mapTemplate:Clone()
 	CurrentMap.Name = "ActiveMap"
 	CurrentMap.Parent = Workspace
+
+	-- ==========================================
+	-- ★超高精度オート・グリッドアライメント（レーザー方式）
+	-- ==========================================
+	-- スポーン地点の少し上から真下にレーザーを撃ち、
+	-- プレイヤーが立つ「床」の正確な高さを測ってグリッドにスライドさせます
+	local spawnLoc = CurrentMap:FindFirstChildWhichIsA("SpawnLocation", true)
+	local origin = spawnLoc and (spawnLoc.Position + Vector3.new(0, 5, 0)) or Vector3.new(0, 100, 0)
+
+	local params = RaycastParams.new()
+	params.FilterDescendantsInstances = { CurrentMap }
+	params.FilterType = Enum.RaycastFilterType.Include
+
+	local result = workspace:Raycast(origin, Vector3.new(0, -500, 0), params)
+
+	if result then
+		local topY = result.Position.Y
+		local nearestGridY = math.round(topY / 4) * 4
+		local offset = nearestGridY - topY
+
+		if math.abs(offset) > 0.001 then
+			-- マップ全体をそのままの形で綺麗にスライドさせる
+			CurrentMap:PivotTo(CurrentMap:GetPivot() + Vector3.new(0, offset, 0))
+		end
+	end
 end
 
 local function resetScores()
