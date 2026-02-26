@@ -400,9 +400,13 @@ local function startRound(mode, participants)
 	local startTime = tick()
 	while isMatchActive do
 		task.wait(1)
-		if tick() - startTime > ROUND_TIME then
-			broadcast("TIME UP!", Color3.new(1, 1, 1))
-			isMatchActive = false
+
+		-- ★変更: BUILDモード「以外」の時だけタイムアウトのカウントをする！
+		if gameMode ~= "BUILD" then
+			if tick() - startTime > ROUND_TIME then
+				broadcast("TIME UP!", Color3.new(1, 1, 1))
+				isMatchActive = false
+			end
 		end
 	end
 
