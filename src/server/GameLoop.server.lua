@@ -36,10 +36,11 @@ if not cameraEvent then
 	cameraEvent.Parent = ReplicatedStorage
 end
 
+-- ★変更: 初期状態（何もクリックしていない時）を「Empty Canvas」にしました
 local selectedMapIndex = 1
 local availableMaps = {
-	{ type = "Official", name = "Cyber City", mapName = "Map_City" },
 	{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
+	{ type = "Official", name = "Cyber City", mapName = "Map_City" },
 }
 
 local mapBoard = Instance.new("Part")
@@ -101,9 +102,10 @@ local function updateBoardDisplay()
 end
 
 local function refreshAvailableMaps()
+	-- ★変更: リスト更新時も「Empty Canvas」を先頭に
 	local newList = {
-		{ type = "Official", name = "Cyber City", mapName = "Map_City" },
 		{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
+		{ type = "Official", name = "Cyber City", mapName = "Map_City" },
 	}
 
 	local getStageListBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageList")
@@ -252,28 +254,26 @@ local function loadMap(mapName)
 	CurrentMap.Name = "ActiveMap"
 	CurrentMap.Parent = Workspace
 
-	-- ==========================================
-	-- ★超高精度オート・グリッドアライメント（レーザー方式）
-	-- ==========================================
-	local spawnLoc = CurrentMap:FindFirstChildWhichIsA("SpawnLocation", true)
-	local origin = spawnLoc and (spawnLoc.Position + Vector3.new(0, 5, 0)) or Vector3.new(0, 100, 0)
+	-- ★修正: 高さをミリ単位で合わせる処理は「ビルド用のステージ(Map_BuildBase)」かつ「Model」の時だけ実行する！
+	if mapName == "Map_BuildBase" and CurrentMap:IsA("Model") then
+		local spawnLoc = CurrentMap:FindFirstChildWhichIsA("SpawnLocation", true)
+		local origin = spawnLoc and (spawnLoc.Position + Vector3.new(0, 5, 0)) or Vector3.new(0, 100, 0)
 
-	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = { CurrentMap }
-	params.FilterType = Enum.RaycastFilterType.Include
+		local params = RaycastParams.new()
+		params.FilterDescendantsInstances = { CurrentMap }
+		params.FilterType = Enum.RaycastFilterType.Include
 
-	local result = workspace:Raycast(origin, Vector3.new(0, -500, 0), params)
+		local result = workspace:Raycast(origin, Vector3.new(0, -500, 0), params)
 
-	if result then
-		local topY = result.Position.Y
+		if result then
+			local topY = result.Position.Y
+			local BLOCK_SIZE = 2
+			local nearestGridY = math.round(topY / BLOCK_SIZE) * BLOCK_SIZE
+			local offset = nearestGridY - topY
 
-		-- ★変更: ブロックサイズに合わせて「4」から「2」に変更！
-		local BLOCK_SIZE = 2
-		local nearestGridY = math.round(topY / BLOCK_SIZE) * BLOCK_SIZE
-		local offset = nearestGridY - topY
-
-		if math.abs(offset) > 0.001 then
-			CurrentMap:PivotTo(CurrentMap:GetPivot() + Vector3.new(0, offset, 0))
+			if math.abs(offset) > 0.001 then
+				CurrentMap:PivotTo(CurrentMap:GetPivot() + Vector3.new(0, offset, 0))
+			end
 		end
 	end
 end
@@ -302,6 +302,13 @@ local function startRound(mode, participants)
 	task.wait(3)
 
 	local targetMap = availableMaps[selectedMapIndex]
+
+	-- ==========================================
+	-- ★追加: FFAとTDM（戦闘モード）の場合は看板を無視して強制的にCyber Cityにする
+	-- ==========================================
+	if gameMode == "FFA" or gameMode == "TDM" then
+		targetMap = { type = "Official", name = "Cyber City", mapName = "Map_City" }
+	end
 
 	if targetMap.type == "Community" then
 		broadcast(
