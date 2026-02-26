@@ -4,7 +4,7 @@ local Debris = game:GetService("Debris")
 local buildEvent = ReplicatedStorage:WaitForChild("BuildEvent")
 
 local cooldowns = {}
-local BUILD_COOLDOWN = 0.2
+local BUILD_COOLDOWN = 0
 local BLOCK_SIZE = 2
 
 local function snapToGrid(position)
