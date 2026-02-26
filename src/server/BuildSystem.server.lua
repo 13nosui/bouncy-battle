@@ -84,7 +84,7 @@ buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeT
 	elseif actionType == "Rotate" then
 		local targetBlock = targetData
 		if targetBlock and targetBlock.Name == "PlayerWall" then
-			targetBlock.CFrame = targetBlock.CFrame * CFrame.Angles(0, math.pi / 4, 0)
+			targetBlock.CFrame = targetBlock.CFrame * CFrame.Angles(0, math.pi / 2, 0)
 			local sound = Instance.new("Sound")
 			sound.SoundId = "rbxassetid://12222084"
 			sound.Volume = 0.5
