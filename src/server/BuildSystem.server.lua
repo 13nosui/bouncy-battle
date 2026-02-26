@@ -74,7 +74,7 @@ buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeT
 		local targetBlock = targetData
 		if targetBlock and targetBlock.Name == "PlayerWall" then
 			local sound = Instance.new("Sound")
-			sound.SoundId = "rbxassetid://685857471"
+			sound.SoundId = "rbxassetid://132092474833421"
 			sound.Volume = 0.8
 			sound.Parent = workspace
 			sound:Play()
@@ -86,7 +86,7 @@ buildEvent.OnServerEvent:Connect(function(player, actionType, targetData, shapeT
 		if targetBlock and targetBlock.Name == "PlayerWall" then
 			targetBlock.CFrame = targetBlock.CFrame * CFrame.Angles(0, math.pi / 2, 0)
 			local sound = Instance.new("Sound")
-			sound.SoundId = "rbxassetid://12222084"
+			sound.SoundId = "rbxassetid://135549838877133"
 			sound.Volume = 0.5
 			sound.Parent = workspace
 			sound:Play()
