@@ -197,6 +197,7 @@ end
 local function teleportToLobby()
 	local lobbySpawn = Workspace:FindFirstChild("LobbySpawn", true)
 	for _, player in ipairs(Players:GetPlayers()) do
+		player:SetAttribute("InMatch", false)
 		if player.Team ~= nil then
 			player.Team = nil
 		end
@@ -235,6 +236,7 @@ local function teleportToArena(players)
 	end
 
 	for i, player in ipairs(players) do
+		player:SetAttribute("InMatch", true)
 		local spawn = spawns[math.random(1, #spawns)]
 		if player.Character then
 			player.Character:PivotTo(spawn.CFrame + Vector3.new(0, 3, 0))
@@ -475,6 +477,7 @@ local function onHumanoidDied(humanoid, player)
 end
 
 Players.PlayerAdded:Connect(function(player)
+	player:SetAttribute("InMatch", false)
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
 	leaderstats.Parent = player

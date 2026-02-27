@@ -60,3 +60,47 @@ if cameraEvent then
 		end
 	end)
 end
+
+-- === 1人称 / 3人称の切り替え処理 ===
+local function updateCameraMode()
+	local inMatch = player:GetAttribute("InMatch")
+	local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
+
+	if inMatch then
+		-- 試合中: 強制1人称
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		camera.CameraType = Enum.CameraType.Custom -- ★試合中は通常(Custom)に戻す
+
+		-- カメラ位置とFOVを元に戻す
+		if humanoid then
+			humanoid.CameraOffset = Vector3.new(0, 0, 0)
+		end
+		TweenService:Create(camera, TweenInfo.new(0.5), { FieldOfView = 70 }):Play()
+	else
+		-- ロビー: 3人称
+		player.CameraMode = Enum.CameraMode.Classic
+		camera.CameraType = Enum.CameraType.Follow -- ★移動時にカメラが自動で背中を追うモード
+
+		player.CameraMinZoomDistance = 10
+		player.CameraMaxZoomDistance = 15
+
+		-- カメラの注視点を「頭の上（Y軸に+2.5）」にズラす
+		if humanoid then
+			humanoid.CameraOffset = Vector3.new(0, 2.5, 0)
+		end
+		-- FOVを広げて空間を広く見せる
+		TweenService:Create(camera, TweenInfo.new(0.5), { FieldOfView = 85 }):Play()
+	end
+end
+
+-- InMatch属性が変更されたらカメラを切り替える
+player:GetAttributeChangedSignal("InMatch"):Connect(updateCameraMode)
+
+-- キャラクターがリスポーンした時にも適用する
+player.CharacterAdded:Connect(function(char)
+	task.wait(0.1) -- Humanoidのロード待ち
+	updateCameraMode()
+end)
+
+-- 初期化
+updateCameraMode()
