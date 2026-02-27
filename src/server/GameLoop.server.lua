@@ -40,7 +40,8 @@ end
 local selectedMapIndex = 1
 local availableMaps = {
 	{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
-	{ type = "Official", name = "Cyber City", mapName = "Map_City" },
+	{ type = "Official", name = "Park", mapName = "Map_Park" },
+	{ type = "Official", name = "Arena", mapName = "Map_Arena" },
 }
 
 local mapBoard = Instance.new("Part")
@@ -105,7 +106,8 @@ local function refreshAvailableMaps()
 	-- ★変更: リスト更新時も「Empty Canvas」を先頭に
 	local newList = {
 		{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
-		{ type = "Official", name = "Cyber City", mapName = "Map_City" },
+		{ type = "Official", name = "Park", mapName = "Map_Park" },
+		{ type = "Official", name = "Arena", mapName = "Map_Arena" },
 	}
 
 	local getStageListBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageList")
@@ -308,9 +310,9 @@ local function startRound(mode, participants)
 	-- ==========================================
 	-- ★追加: FFAとTDM（戦闘モード）の場合は看板を無視して強制的にCyber Cityにする
 	-- ==========================================
-	if gameMode == "FFA" or gameMode == "TDM" then
-		targetMap = { type = "Official", name = "Cyber City", mapName = "Map_City" }
-	end
+	-- if gameMode == "FFA" or gameMode == "TDM" then
+	-- 	targetMap = { type = "Official", name = "Cyber City", mapName = "Map_City" }
+	-- end
 
 	if targetMap.type == "Community" then
 		broadcast(
