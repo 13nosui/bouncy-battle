@@ -60,7 +60,7 @@ mapBoard.Color = Color3.fromRGB(30, 30, 30)
 mapBoard.Parent = Workspace
 
 local surfaceGui = Instance.new("SurfaceGui")
-surfaceGui.Face = Enum.NormalId.Front
+surfaceGui.Face = Enum.NormalId.Back
 surfaceGui.Parent = mapBoard
 
 local titleLabel = Instance.new("TextLabel")
@@ -137,7 +137,7 @@ clickDetector.MouseClick:Connect(function()
 	updateBoardDisplay()
 
 	local sound = Instance.new("Sound")
-	sound.SoundId = "rbxassetid://12222084"
+	sound.SoundId = "rbxassetid://138470560522298"
 	sound.Volume = 0.5
 	sound.Parent = mapBoard
 	sound:Play()
