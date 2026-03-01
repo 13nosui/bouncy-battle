@@ -37,11 +37,11 @@ if not cameraEvent then
 end
 
 -- ★変更: 初期状態（何もクリックしていない時）を「Empty Canvas」にしました
-local selectedMapIndex = 1
+local selectedMapIndex = 2
 local availableMaps = {
 	{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
-	{ type = "Official", name = "Park", mapName = "Map_Park" },
-	{ type = "Official", name = "Arena", mapName = "Map_Arena" },
+	{ type = "Official", name = "Park Stage", mapName = "Map_Park" },
+	{ type = "Official", name = "Battle Arena", mapName = "Map_Arena" },
 }
 
 local mapBoard = Instance.new("Part")
@@ -106,8 +106,8 @@ local function refreshAvailableMaps()
 	-- ★変更: リスト更新時も「Empty Canvas」を先頭に
 	local newList = {
 		{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
-		{ type = "Official", name = "Park", mapName = "Map_Park" },
-		{ type = "Official", name = "Arena", mapName = "Map_Arena" },
+		{ type = "Official", name = "Park Stage", mapName = "Map_Park" },
+		{ type = "Official", name = "Battle Arena", mapName = "Map_Arena" },
 	}
 
 	local getStageListBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageList")

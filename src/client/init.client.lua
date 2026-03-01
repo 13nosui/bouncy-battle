@@ -396,15 +396,30 @@ local function handleToggleWeapon(actionName, inputState, inputObject)
 			return
 		end
 
-		local currentTool = character:FindFirstChild("BouncyGun")
+		-- ★変更: 手に持っているBouncy系の武器を探す
+		local currentTool = nil
+		for _, child in ipairs(character:GetChildren()) do
+			if child:IsA("Tool") and child.Name:match("Bouncy") then
+				currentTool = child
+				break
+			end
+		end
+
 		if currentTool then
 			humanoid:UnequipTools()
 		else
 			local backpack = player:FindFirstChild("Backpack")
 			if backpack then
-				local tool = backpack:FindFirstChild("BouncyGun")
-				if tool then
-					humanoid:EquipTool(tool)
+				-- ★変更: バックパックの中にあるBouncy系の武器を探す
+				local toolToEquip = nil
+				for _, item in ipairs(backpack:GetChildren()) do
+					if item:IsA("Tool") and item.Name:match("Bouncy") then
+						toolToEquip = item
+						break
+					end
+				end
+				if toolToEquip then
+					humanoid:EquipTool(toolToEquip)
 				end
 			end
 		end
@@ -505,6 +520,13 @@ local function onBuildUnequip()
 	end
 end
 
+-- 武器のリストを定義
+local WEAPONS = {
+	["BouncyGun"] = true,
+	["BouncyShotgun"] = true,
+	["BouncySMG"] = true,
+}
+
 player.CharacterAdded:Connect(function(char)
 	isEquipped = false
 	isBuildEquipped = false
@@ -517,14 +539,16 @@ player.CharacterAdded:Connect(function(char)
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 
 	char.ChildAdded:Connect(function(child)
-		if child:IsA("Tool") and child.Name == "BouncyGun" then
+		-- ★変更: リストにある武器ならONにする
+		if child:IsA("Tool") and WEAPONS[child.Name] then
 			onGunEquip()
 		elseif child:IsA("Tool") and child.Name == "BuildTool" then
 			onBuildEquip()
 		end
 	end)
 	char.ChildRemoved:Connect(function(child)
-		if child:IsA("Tool") and child.Name == "BouncyGun" then
+		-- ★変更: リストにある武器ならOFFにする
+		if child:IsA("Tool") and WEAPONS[child.Name] then
 			onGunUnequip()
 		elseif child:IsA("Tool") and child.Name == "BuildTool" then
 			onBuildUnequip()
@@ -532,9 +556,13 @@ player.CharacterAdded:Connect(function(char)
 	end)
 end)
 
+-- ★変更: スポーン直後にすでに持っていた場合の判定
 if player.Character then
-	if player.Character:FindFirstChild("BouncyGun") then
-		onGunEquip()
+	for weaponName, _ in pairs(WEAPONS) do
+		if player.Character:FindFirstChild(weaponName) then
+			onGunEquip()
+			break
+		end
 	end
 	if player.Character:FindFirstChild("BuildTool") then
 		onBuildEquip()
