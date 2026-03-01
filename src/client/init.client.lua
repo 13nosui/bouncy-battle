@@ -11,6 +11,7 @@ local camera = workspace.CurrentCamera
 
 local fireEvent = ReplicatedStorage:WaitForChild("FireBullet")
 local effectEvent = ReplicatedStorage:WaitForChild("PlayEffect")
+local guardEvent = ReplicatedStorage:WaitForChild("GuardEvent")
 local reloadEvent = ReplicatedStorage:WaitForChild("Reload")
 local buildEvent = ReplicatedStorage:WaitForChild("BuildEvent")
 
@@ -253,6 +254,20 @@ local function handleDestroy(actionName, inputState, inputObject)
 	return Enum.ContextActionResult.Pass
 end
 
+local function handleGuard(actionName, inputState, inputObject)
+	print("[Client] Qキー入力検知！ inputState:", inputState, "isEquipped:", isEquipped) -- ★デバッグ用
+	if inputState == Enum.UserInputState.Begin then
+		if isEquipped then -- 銃を持っている時だけシールドを展開できる
+			print("[Client] サーバーへシールド展開イベントを送信します！") -- ★デバッグ用
+			guardEvent:FireServer()
+			return Enum.ContextActionResult.Sink
+		else
+			print("[Client] ⚠️銃を装備していないため、シールドを展開できません。") -- ★デバッグ用
+		end
+	end
+	return Enum.ContextActionResult.Pass
+end
+
 local function handleSave(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin and isBuildEquipped then
 		local saveEvent = ReplicatedStorage:FindFirstChild("SaveStageEvent")
@@ -455,6 +470,9 @@ ContextActionService:BindAction("SaveAction", handleSave, true, Enum.KeyCode.J, 
 ContextActionService:BindAction("LoadAction", handleLoad, true, Enum.KeyCode.K, Enum.KeyCode.DPadDown)
 ContextActionService:BindAction("PublishAction", handlePublish, true, Enum.KeyCode.P, Enum.KeyCode.DPadLeft)
 ContextActionService:BindAction("ToggleWeapon", handleToggleWeapon, false, Enum.KeyCode.ButtonY)
+ContextActionService:BindAction("GuardAction", handleGuard, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
+ContextActionService:SetPosition("GuardAction", UDim2.new(1, -100, 1, -100))
+ContextActionService:SetTitle("GuardAction", "GUARD")
 
 ContextActionService:SetPosition("FireAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("ReloadOrRotateAction", UDim2.new(1, -100, 1, -100))
@@ -476,6 +494,7 @@ local function onGunEquip()
 
 	ContextActionService:SetTitle("FireAction", "FIRE")
 	ContextActionService:SetTitle("ReloadOrRotateAction", "RLD")
+	ContextActionService:SetTitle("GuardAction", "GUARD (Q)")
 end
 
 local function onGunUnequip()
