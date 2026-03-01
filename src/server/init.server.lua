@@ -145,8 +145,8 @@ guardEvent.OnServerEvent:Connect(function(player)
 	shield.Shape = Enum.PartType.Block
 	shield.Size = Vector3.new(8, 6, 0.5)
 
-	shield.Material = Enum.Material.Neon
-	shield.Transparency = 0.4
+	shield.Material = Enum.Material.Glass
+	shield.Transparency = 0.7
 	shield.Color = Color3.fromRGB(0, 255, 255)
 
 	shield.CanCollide = false

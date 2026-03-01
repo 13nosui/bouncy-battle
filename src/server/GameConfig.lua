@@ -64,4 +64,12 @@ GameConfig.Shield = {
 	BounceMultiplier = 1.5, -- 敵の弾を弾き返す時のスピード倍率（1.5倍でカウンター！）
 }
 
+-- === 超能力の設定 ===
+GameConfig.Abilities = {
+	["HighJump"] = {
+		JumpVelocity = 120, -- 上に跳ね上がる力（数字が大きいほど高く飛ぶ）
+		Cooldown = 4.0, -- 次に使えるまでの待ち時間（秒）
+	},
+}
+
 return GameConfig

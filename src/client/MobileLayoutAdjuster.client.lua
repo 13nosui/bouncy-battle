@@ -29,6 +29,9 @@ local CONTROLS = {
 	{ action = "SaveAction", label = "SAVE", relX = 1, relY = -1 },
 	{ action = "LoadAction", label = "LOAD", relX = 1, relY = -2 },
 	{ action = "PublishAction", label = "PUBLISH", relX = 1, relY = -3 },
+
+	-- ★追加: 超能力ボタン（左下寄り）
+	{ action = "AbilityAction", label = "ABILITY", relX = -1, relY = 0 },
 }
 
 local function updateLayout()

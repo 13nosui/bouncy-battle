@@ -13,7 +13,7 @@ local fireEvent = ReplicatedStorage:WaitForChild("FireBullet")
 local effectEvent = ReplicatedStorage:WaitForChild("PlayEffect")
 local guardEvent = ReplicatedStorage:WaitForChild("GuardEvent")
 local reloadEvent = ReplicatedStorage:WaitForChild("Reload")
-local buildEvent = ReplicatedStorage:WaitForChild("BuildEvent")
+local abilityEvent = ReplicatedStorage:WaitForChild("AbilityEvent")
 
 local CROSSHAIR_IMAGE = "rbxassetid://128000667256203"
 local CROSSHAIR_SIZE = 80
@@ -255,15 +255,20 @@ local function handleDestroy(actionName, inputState, inputObject)
 end
 
 local function handleGuard(actionName, inputState, inputObject)
-	print("[Client] Qキー入力検知！ inputState:", inputState, "isEquipped:", isEquipped) -- ★デバッグ用
 	if inputState == Enum.UserInputState.Begin then
-		if isEquipped then -- 銃を持っている時だけシールドを展開できる
-			print("[Client] サーバーへシールド展開イベントを送信します！") -- ★デバッグ用
+		if isEquipped then
 			guardEvent:FireServer()
 			return Enum.ContextActionResult.Sink
-		else
-			print("[Client] ⚠️銃を装備していないため、シールドを展開できません。") -- ★デバッグ用
 		end
+	end
+	return Enum.ContextActionResult.Pass
+end
+
+local function handleAbility(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
+		-- 持っているかどうかはサーバー側で判定するので、とりあえず送信する
+		abilityEvent:FireServer()
+		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
 end
@@ -473,6 +478,9 @@ ContextActionService:BindAction("ToggleWeapon", handleToggleWeapon, false, Enum.
 ContextActionService:BindAction("GuardAction", handleGuard, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
 ContextActionService:SetPosition("GuardAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetTitle("GuardAction", "GUARD")
+ContextActionService:BindAction("AbilityAction", handleAbility, true, Enum.KeyCode.Z, Enum.KeyCode.ButtonR1)
+ContextActionService:SetPosition("AbilityAction", UDim2.new(1, -100, 1, -100))
+ContextActionService:SetTitle("AbilityAction", "ABILITY (Z)")
 
 ContextActionService:SetPosition("FireAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("ReloadOrRotateAction", UDim2.new(1, -100, 1, -100))
@@ -630,5 +638,19 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 			{ Size = Vector3.new(3.5, 3.5, 3.5), Transparency = 1 }
 		):Play()
 		Debris:AddItem(flash, 0.1)
+	end
+end)
+
+abilityEvent.OnClientEvent:Connect(function(abilityType, config)
+	if abilityType == "HighJump" then
+		local char = player.Character
+		if char then
+			local root = char:FindFirstChild("HumanoidRootPart")
+			if root then
+				-- クライアント側（自分自身の画面）で物理的な力を加えるから確実に飛べる！
+				local currentVel = root.AssemblyLinearVelocity
+				root.AssemblyLinearVelocity = Vector3.new(currentVel.X, config.JumpVelocity, currentVel.Z)
+			end
+		end
 	end
 end)
