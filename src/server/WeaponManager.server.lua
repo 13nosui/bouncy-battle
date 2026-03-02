@@ -6,13 +6,11 @@ local WeaponsFolder = ServerStorage:WaitForChild("Weapons")
 
 -- プライベート(VIP)サーバーかどうかの判定
 local IS_VIP_SERVER = game.PrivateServerId ~= "" and game.PrivateServerOwnerId ~= 0
--- (※Studioでのテストプレイ時は必ず false になります)
 
 -- === 1. プレイヤーのスポーン時の武器配布 ===
 local function onCharacterAdded(player, character)
-	task.wait(0.1) -- ロード待ち
+	task.wait(0.1)
 
-	-- 古い武器を一旦すべて消す
 	local backpack = player:FindFirstChild("Backpack")
 	if backpack then
 		for _, item in ipairs(backpack:GetChildren()) do
@@ -23,14 +21,12 @@ local function onCharacterAdded(player, character)
 	end
 
 	if IS_VIP_SERVER then
-		-- ★VIPサーバー: 全種類の武器をプレゼント！
 		for _, weaponTemplate in ipairs(WeaponsFolder:GetChildren()) do
 			if weaponTemplate:IsA("Tool") then
 				weaponTemplate:Clone().Parent = backpack
 			end
 		end
 	else
-		-- ★通常サーバー: デフォルトの銃を1つだけ渡す
 		local defaultGun = WeaponsFolder:FindFirstChild("BouncyGun")
 		if defaultGun and backpack then
 			defaultGun:Clone().Parent = backpack
@@ -44,17 +40,31 @@ Players.PlayerAdded:Connect(function(player)
 	end)
 end)
 
--- === 2. 武器ピックアップ台の処理 (通常サーバー用) ===
+-- === 2. 武器ピックアップ台の処理 ===
 local function setupWeaponSpawners()
-	-- Workspace内にある「WeaponSpawner」という名前のモデルを探す
 	for _, spawner in ipairs(Workspace:GetDescendants()) do
 		if spawner.Name == "WeaponSpawner" and spawner:IsA("Model") then
-			local clickDetector = spawner:FindFirstChildOfClass("ClickDetector")
-			local weaponNameValue = spawner:FindFirstChild("WeaponName") -- 中に入れたStringValue
+			local weaponNameValue = spawner:FindFirstChild("WeaponName")
 
-			if clickDetector and weaponNameValue then
-				clickDetector.MouseClick:Connect(function(player)
-					-- VIPサーバーならそもそも交換不要なので無視
+			if weaponNameValue then
+				-- ★変更: 古いClickDetectorがあれば削除
+				local clickDetector = spawner:FindFirstChildOfClass("ClickDetector")
+				if clickDetector then
+					clickDetector:Destroy()
+				end
+
+				-- ★変更: 代わりにProximityPrompt(近づいてEキー)を作成
+				local targetPart = spawner:FindFirstChild("Part") or spawner.PrimaryPart or spawner
+				local prompt = Instance.new("ProximityPrompt")
+				prompt.ActionText = "Equip"
+				prompt.ObjectText = weaponNameValue.Value
+				prompt.KeyboardKeyCode = Enum.KeyCode.E
+				prompt.RequiresLineOfSight = false
+				prompt.MaxActivationDistance = 12 -- 反応する距離
+				prompt.Parent = targetPart
+
+				-- Eキーが押された時の処理
+				prompt.Triggered:Connect(function(player)
 					if IS_VIP_SERVER then
 						return
 					end
@@ -71,12 +81,10 @@ local function setupWeaponSpawners()
 						return
 					end
 
-					-- すでに同じ武器を持っていたら何もしない
 					if backpack:FindFirstChild(targetWeaponName) or character:FindFirstChild(targetWeaponName) then
 						return
 					end
 
-					-- いま持っている武器(Bouncy系)を捨てる
 					for _, item in ipairs(backpack:GetChildren()) do
 						if item.Name:match("Bouncy") then
 							item:Destroy()
@@ -88,19 +96,16 @@ local function setupWeaponSpawners()
 						end
 					end
 
-					-- 新しい武器を渡す
 					local clonedWeapon = newWeaponTemplate:Clone()
 					clonedWeapon.Parent = backpack
 
-					-- 強制的に装備させる
 					local humanoid = character:FindFirstChild("Humanoid")
 					if humanoid then
 						humanoid:EquipTool(clonedWeapon)
 					end
 
-					-- 効果音
 					local sound = Instance.new("Sound")
-					sound.SoundId = "rbxassetid://6812196620" -- カチャッという装備音
+					sound.SoundId = "rbxassetid://6812196620"
 					sound.Volume = 0.8
 					sound.Parent = character.HumanoidRootPart
 					sound:Play()
@@ -111,7 +116,6 @@ local function setupWeaponSpawners()
 	end
 end
 
--- ロビーやマップがロードされるのを少し待ってから台をセットアップ
 task.spawn(function()
 	task.wait(3)
 	setupWeaponSpawners()

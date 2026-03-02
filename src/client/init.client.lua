@@ -256,7 +256,8 @@ end
 
 local function handleGuard(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
-		if isEquipped then
+		-- ★変更: 銃を装備していて、かつ「シールドを持っている」時だけ発動する
+		if isEquipped and player:GetAttribute("HasShield") then
 			guardEvent:FireServer()
 			return Enum.ContextActionResult.Sink
 		end
@@ -491,6 +492,22 @@ ContextActionService:SetPosition("ToggleMaterialAction", UDim2.new(1, -100, 1, -
 ContextActionService:SetPosition("SaveAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("LoadAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("PublishAction", UDim2.new(1, -100, 1, -100))
+
+-- ★追加: シールドの有無でボタンの文字を変える処理
+local function updateGuardButton()
+	if player:GetAttribute("HasShield") then
+		ContextActionService:SetTitle("GuardAction", "GUARD (Q)")
+	else
+		ContextActionService:SetTitle("GuardAction", "NO SHIELD")
+	end
+end
+
+-- 監視（シールドを取得した瞬間にボタンの文字を更新）
+player:GetAttributeChangedSignal("HasShield"):Connect(function()
+	if isEquipped then
+		updateGuardButton()
+	end
+end)
 
 local function onGunEquip()
 	isEquipped = true

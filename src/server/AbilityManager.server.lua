@@ -19,11 +19,27 @@ local cooldowns = {}
 local function setupAbilitySpawners()
 	for _, spawner in ipairs(Workspace:GetDescendants()) do
 		if spawner.Name == "AbilitySpawner" and spawner:IsA("Model") then
-			local clickDetector = spawner:FindFirstChildOfClass("ClickDetector")
 			local abilityNameValue = spawner:FindFirstChild("AbilityName")
 
-			if clickDetector and abilityNameValue then
-				clickDetector.MouseClick:Connect(function(player)
+			if abilityNameValue then
+				-- ★変更: 古いClickDetectorがあれば削除
+				local clickDetector = spawner:FindFirstChildOfClass("ClickDetector")
+				if clickDetector then
+					clickDetector:Destroy()
+				end
+
+				-- ★変更: 代わりにProximityPrompt(近づいてEキー)を作成
+				local targetPart = spawner:FindFirstChild("Part") or spawner.PrimaryPart or spawner
+				local prompt = Instance.new("ProximityPrompt")
+				prompt.ActionText = "Get Ability"
+				prompt.ObjectText = abilityNameValue.Value
+				prompt.KeyboardKeyCode = Enum.KeyCode.E
+				prompt.RequiresLineOfSight = false
+				prompt.MaxActivationDistance = 12
+				prompt.Parent = targetPart
+
+				-- Eキーが押された時の処理
+				prompt.Triggered:Connect(function(player)
 					local abilityName = abilityNameValue.Value
 					if not GameConfig.Abilities[abilityName] then
 						return
@@ -42,6 +58,36 @@ local function setupAbilitySpawners()
 					end
 				end)
 			end
+		elseif spawner.Name == "ShieldSpawner" and spawner:IsA("Model") then
+			local targetPart = spawner:FindFirstChild("Part") or spawner.PrimaryPart or spawner
+			local prompt = Instance.new("ProximityPrompt")
+			prompt.ActionText = "Equip"
+			prompt.ObjectText = "Energy Shield" -- 表示名
+			prompt.KeyboardKeyCode = Enum.KeyCode.E
+			prompt.RequiresLineOfSight = false
+			prompt.MaxActivationDistance = 12
+			prompt.Parent = targetPart
+
+			prompt.Triggered:Connect(function(player)
+				-- すでに持っている場合は何もしない
+				if player:GetAttribute("HasShield") then
+					return
+				end
+
+				-- シールドを付与
+				player:SetAttribute("HasShield", true)
+
+				local char = player.Character
+				if char and char:FindFirstChild("HumanoidRootPart") then
+					local sound = Instance.new("Sound")
+					sound.SoundId = "rbxassetid://86070307558627"
+					sound.Volume = 1.0
+					sound.Pitch = 1.2 -- 超能力と少し違う音の高さにする
+					sound.Parent = char.HumanoidRootPart
+					sound:Play()
+					Debris:AddItem(sound, 1)
+				end
+			end)
 		end
 	end
 end

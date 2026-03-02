@@ -96,6 +96,9 @@ end
 
 Players.PlayerAdded:Connect(function(player)
 	player:SetAttribute("IsReady", false)
+	-- ★追加: 初期状態ではシールドを持っていない
+	player:SetAttribute("HasShield", false)
+
 	player.CharacterAdded:Connect(function(character)
 		local healthScript = character:WaitForChild("Health", 5)
 		if healthScript then
@@ -107,6 +110,9 @@ Players.PlayerAdded:Connect(function(player)
 		character:SetAttribute("MaxAmmo", defaultStats.MaxAmmo)
 		character:SetAttribute("IsReloading", false)
 		character:SetAttribute("EmptyClicked", false)
+
+		-- ★追加: 死んで復活するたびにシールドを失うようにする
+		player:SetAttribute("HasShield", false)
 	end)
 end)
 
@@ -121,6 +127,10 @@ end)
 
 -- === ★シールドの展開処理 ===
 guardEvent.OnServerEvent:Connect(function(player)
+	if not player:GetAttribute("HasShield") then
+		return
+	end
+
 	local char = player.Character
 	if not char then
 		return
