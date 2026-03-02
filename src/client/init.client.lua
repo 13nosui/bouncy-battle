@@ -647,10 +647,48 @@ abilityEvent.OnClientEvent:Connect(function(abilityType, config)
 		if char then
 			local root = char:FindFirstChild("HumanoidRootPart")
 			if root then
-				-- クライアント側（自分自身の画面）で物理的な力を加えるから確実に飛べる！
 				local currentVel = root.AssemblyLinearVelocity
 				root.AssemblyLinearVelocity = Vector3.new(currentVel.X, config.JumpVelocity, currentVel.Z)
 			end
 		end
+
+	-- ★壁の透視（XRay）を受け取った時の処理
+	elseif abilityType == "XRay" then
+		local char = player.Character
+		if not char then
+			return
+		end
+
+		-- 能力の終了時間を計算
+		local endTime = tick() + config.Duration
+
+		-- 効果時間中、定期的に「新しい敵」がいないかチェックしてハイライトを付ける
+		task.spawn(function()
+			while tick() < endTime do
+				-- Workspace内のすべてのキャラクターをチェック
+				for _, child in ipairs(workspace:GetChildren()) do
+					if child:IsA("Model") and child:FindFirstChild("Humanoid") and child ~= char then
+						-- まだハイライトがついていなければ付ける
+						if not child:FindFirstChild("XRayHighlight") then
+							local hl = Instance.new("Highlight")
+							hl.Name = "XRayHighlight"
+							hl.FillColor = Color3.fromRGB(255, 0, 0) -- 赤色
+							hl.FillTransparency = 0.5
+							hl.OutlineColor = Color3.fromRGB(255, 255, 255) -- 白い枠線
+							hl.OutlineTransparency = 0
+
+							-- ★これが壁を透ける魔法のプロパティ！
+							hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+
+							hl.Parent = child
+
+							-- 能力の終了時間に合わせて自動的に消えるようにする
+							Debris:AddItem(hl, endTime - tick())
+						end
+					end
+				end
+				task.wait(0.5) -- 0.5秒ごとにチェック（途中でリスポーンしたBotも逃さない）
+			end
+		end)
 	end
 end)

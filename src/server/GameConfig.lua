@@ -70,6 +70,42 @@ GameConfig.Abilities = {
 		JumpVelocity = 120, -- 上に跳ね上がる力（数字が大きいほど高く飛ぶ）
 		Cooldown = 4.0, -- 次に使えるまでの待ち時間（秒）
 	},
+	["SpeedBoost"] = {
+		SpeedMultiplier = 2.5, -- 移動速度の倍率
+		Duration = 5.0, -- 持続時間（秒）
+		Cooldown = 10.0, -- 次に使えるまでの待ち時間
+	},
+	["Invisibility"] = {
+		Transparency = 0.9, -- 透明度（1.0で完全に見えなくなる）
+		Duration = 7.0, -- 持続時間（秒）
+		Cooldown = 15.0, -- 次に使えるまでの待ち時間
+	},
+	["Teleport"] = {
+		Distance = 50, -- ワープする距離（スタッド）
+		Cooldown = 6.0,
+	},
+	["TimeSlow"] = {
+		Radius = 25, -- 弾が遅くなるドームの半径
+		Duration = 6.0, -- 持続時間（秒）
+		SpeedMultiplier = 0.1, -- 弾の速度を10%に落とす
+		Cooldown = 15.0,
+	},
+	["Giant"] = {
+		Scale = 2.0, -- 大きさ（2倍）
+		DamageMultiplier = 2.0, -- 攻撃力（2倍）
+		Duration = 10.0, -- 持続時間（秒）
+		Cooldown = 20.0,
+	},
+	["Mini"] = {
+		Scale = 0.4, -- 大きさ（0.4倍）
+		DamageMultiplier = 0.5, -- 攻撃力（半分）
+		Duration = 10.0,
+		Cooldown = 15.0,
+	},
+	["XRay"] = {
+		Duration = 8.0, -- 透視できる時間（秒）
+		Cooldown = 20.0, -- 次に使えるまでの時間
+	},
 }
 
 return GameConfig

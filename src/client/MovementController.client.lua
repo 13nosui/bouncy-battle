@@ -10,7 +10,6 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 
--- === 設定値 ===
 local WALK_SPEED = 16
 local RUN_SPEED = 28
 local CROUCH_SPEED = 8
@@ -31,20 +30,17 @@ local WALL_JUMP_COOLDOWN = 0.5
 local STAND_HIP_HEIGHT = 2
 local CROUCH_HIP_HEIGHT = 0.5
 
--- === 状態管理 ===
 local isSprinting = false
 local isCrouching = false
 local isSliding = false
 local lastSlideTime = 0
 local lastWallJumpTime = 0
 
--- === 1. カメラティルト ===
 local currentTilt = 0
 local function updateCameraTilt()
 	local moveDir = humanoid.MoveDirection
 	local rightVec = camera.CFrame.RightVector
 	local dot = moveDir:Dot(rightVec)
-
 	local targetTilt = 0
 	if math.abs(dot) > 0.5 then
 		targetTilt = (dot > 0) and -TILT_ANGLE or TILT_ANGLE
@@ -53,23 +49,34 @@ local function updateCameraTilt()
 	camera.CFrame = camera.CFrame * CFrame.Angles(0, 0, math.rad(currentTilt))
 end
 
--- === 2. アクション処理 ===
 local function updateMovementState()
 	if isSliding then
 		return
 	end
 
+	-- ★追加: 現在のサイズ（スケール）を取得
+	local heightScale = 1.0
+	local val = humanoid:FindFirstChild("BodyHeightScale")
+	if val and val:IsA("NumberValue") then
+		heightScale = val.Value
+	end
+
 	local targetSpeed = WALK_SPEED
 	local targetFOV = BASE_FOV
-	local targetHipHeight = STAND_HIP_HEIGHT
+
+	-- ★追加: 腰の高さ（HipHeight）を体のサイズに掛け算してめり込みを防ぐ
+	local targetHipHeight = STAND_HIP_HEIGHT * heightScale
 
 	if isCrouching then
 		targetSpeed = CROUCH_SPEED
-		targetHipHeight = CROUCH_HIP_HEIGHT
+		targetHipHeight = CROUCH_HIP_HEIGHT * heightScale
 	elseif isSprinting then
 		targetSpeed = RUN_SPEED
 		targetFOV = RUN_FOV
 	end
+
+	local speedBoost = character:GetAttribute("SpeedBoostMultiplier") or 1
+	targetSpeed = targetSpeed * speedBoost
 
 	humanoid.WalkSpeed = targetSpeed
 	TweenService:Create(camera, TweenInfo.new(0.2), { FieldOfView = targetFOV }):Play()
@@ -84,7 +91,6 @@ local function startSlide()
 	if isSliding then
 		return
 	end
-
 	if not isSprinting or humanoid.MoveDirection.Magnitude < 0.1 then
 		isCrouching = true
 		updateMovementState()
@@ -100,7 +106,14 @@ local function startSlide()
 	slideVelocity.Velocity = rootPart.CFrame.LookVector * SLIDE_SPEED
 	slideVelocity.Parent = rootPart
 
-	TweenService:Create(humanoid, TweenInfo.new(0.1), { HipHeight = CROUCH_HIP_HEIGHT }):Play()
+	-- ★スライディング時の腰の高さもスケールに合わせる
+	local heightScale = 1.0
+	local val = humanoid:FindFirstChild("BodyHeightScale")
+	if val and val:IsA("NumberValue") then
+		heightScale = val.Value
+	end
+
+	TweenService:Create(humanoid, TweenInfo.new(0.1), { HipHeight = CROUCH_HIP_HEIGHT * heightScale }):Play()
 	TweenService:Create(camera, TweenInfo.new(0.1), { FieldOfView = RUN_FOV + 10 }):Play()
 
 	task.delay(SLIDE_DURATION, function()
@@ -108,7 +121,6 @@ local function startSlide()
 			slideVelocity:Destroy()
 		end
 		isSliding = false
-
 		if isSprinting then
 			isCrouching = false
 		elseif isCrouching then
@@ -121,7 +133,6 @@ local function startSlide()
 	end)
 end
 
--- === 3. 入力バインド (PC & Mobile) ===
 local function handleSprint(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
 		isSprinting = true
@@ -151,19 +162,41 @@ local function handleCrouch(actionName, inputState, inputObject)
 	end
 end
 
--- ★変更: 起動時に1回だけバインドし、二度とUnbindしない
 ContextActionService:BindAction("SprintAction", handleSprint, true, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
 ContextActionService:BindAction("CrouchAction", handleCrouch, true, Enum.KeyCode.C, Enum.KeyCode.ButtonB)
 ContextActionService:SetTitle("SprintAction", "DASH")
 ContextActionService:SetTitle("CrouchAction", "SLIDE")
 
--- === その他処理 ===
+-- ★追加: サイズが変わったことを検知して歩行設定を更新する処理
+local function setupScaleListener(hum)
+	local heightScaleVal = hum:WaitForChild("BodyHeightScale", 5)
+	if heightScaleVal then
+		heightScaleVal.Changed:Connect(function()
+			if not isSliding then
+				updateMovementState()
+			end
+		end)
+	end
+end
+
 player.CharacterAdded:Connect(function(newChar)
 	character = newChar
 	humanoid = newChar:WaitForChild("Humanoid")
 	rootPart = newChar:WaitForChild("HumanoidRootPart")
-	-- (ここにあったボタン再生成処理を完全に削除)
+
+	setupScaleListener(humanoid)
+
+	newChar:GetAttributeChangedSignal("SpeedBoostMultiplier"):Connect(function()
+		updateMovementState()
+	end)
 end)
+
+if character then
+	setupScaleListener(humanoid)
+	character:GetAttributeChangedSignal("SpeedBoostMultiplier"):Connect(function()
+		updateMovementState()
+	end)
+end
 
 RunService.RenderStepped:Connect(function()
 	updateCameraTilt()

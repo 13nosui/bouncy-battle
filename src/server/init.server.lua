@@ -344,7 +344,12 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 
 				hasHitHumanoid = true
 				tagHumanoid(humanoid, player)
-				humanoid:TakeDamage(stats.Damage)
+
+				-- ★ここから下を変更！（ダメージ計算に倍率を掛け算する）
+				local damageMult = character:GetAttribute("DamageMultiplier") or 1.0
+				humanoid:TakeDamage(stats.Damage * damageMult)
+				-- ★変更ここまで
+
 				playSound(SOUND_HIT, hit, 1.0, 1.0)
 				bullet:Destroy()
 			else
