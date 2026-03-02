@@ -16,6 +16,7 @@ local SOUND_HIT = "rbxassetid://123589129673882"
 local SOUND_EMPTY = "rbxassetid://9117048518"
 local SOUND_RELOAD = "rbxassetid://506273075"
 local SOUND_SHIELD = "rbxassetid://12222076"
+local SOUND_EXPLODE = "rbxassetid://12222030" -- ★追加: 爆発音
 
 local cooldowns = {}
 local guardCooldowns = {} -- ★シールドのクールダウン管理
@@ -243,7 +244,12 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 		spawnPos = spawnPos + baseDirection * 5
 	end
 
-	playSound(SOUND_SHOOT, sourcePart, 0.5, 1.2)
+	-- ★変更: 爆発武器は発射音を重くする
+	if stats.IsExplosive then
+		playSound(SOUND_SHOOT, sourcePart, 1.2, 0.6)
+	else
+		playSound(SOUND_SHOOT, sourcePart, 0.5, 1.2)
+	end
 
 	for i = 1, stats.BulletsPerShot do
 		local spawnDirection = baseDirection
@@ -303,9 +309,12 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 			if hasHitHumanoid then
 				return
 			end
-			if bullet.AssemblyLinearVelocity.Magnitude < 10 then
+
+			-- ★修正1: 爆発物（グレネード）は速度が遅くても、何かに触れたら絶対爆発させる！
+			if not stats.IsExplosive and bullet.AssemblyLinearVelocity.Magnitude < 10 then
 				return
 			end
+
 			if not hit or not hit.Parent then
 				return
 			end
@@ -316,16 +325,12 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 				if ownerId == player.UserId then
 					return -- 自分のシールドはすり抜ける
 				else
-					-- 敵のシールドに当たった！
-					local normal = hit.CFrame.LookVector -- シールドが向いている方向
+					local normal = hit.CFrame.LookVector
 					local currentVel = bullet.AssemblyLinearVelocity
 
-					-- 弾がシールドの「正面」からぶつかった場合のみ反射する
 					if currentVel:Dot(normal) < 0 then
 						local reflectVel = currentVel - 2 * currentVel:Dot(normal) * normal
 						bullet.AssemblyLinearVelocity = reflectVel * GameConfig.Shield.BounceMultiplier
-
-						-- 反射された弾は白く光る！
 						bullet.Color = Color3.fromRGB(255, 255, 255)
 						trail.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
 						playSound(SOUND_BOUNCE, bullet, 1.0, 1.5)
@@ -343,6 +348,132 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 				canHitOwner = true
 			end
 
+			-- ==============================================
+			-- ★爆発処理（ゴム弾が飛び散る！）
+			-- ==============================================
+			-- ==============================================
+			if stats.IsExplosive then
+				hasHitHumanoid = true
+				playSound(SOUND_EXPLODE, bullet, 1.5, 0.8)
+
+				-- 1. ド派手な吹き飛ばし（ノックバック）だけを残し、透明な一括ダメージ判定は消す
+				local explosion = Instance.new("Explosion")
+				explosion.Position = bullet.Position
+				explosion.BlastRadius = stats.ExplosionRadius
+				explosion.BlastPressure = 500000
+				explosion.DestroyJointRadiusPercent = 0
+				explosion.Visible = false
+				explosion.Parent = workspace
+
+				-- 画面をフラッシュさせる合図
+				effectEvent:FireAllClients("RubberExplosion", {
+					Position = bullet.Position,
+					Color = bullet.Color,
+				})
+
+				-- 2. ★本物の「小さなゴム弾」を15発生成して四方八方に飛ばす！
+				local CLUSTER_COUNT = 15
+				local CLUSTER_DAMAGE = 15 -- 1発当たると15ダメージ
+
+				for j = 1, CLUSTER_COUNT do
+					local mini = Instance.new("Part")
+					mini.Name = "RubberBullet"
+					mini.Shape = Enum.PartType.Ball
+					mini.Size = Vector3.new(0.8, 0.8, 0.8)
+					mini.Material = Enum.Material.Neon
+					mini.Color = bullet.Color
+					mini.Position = bullet.Position
+						+ Vector3.new((math.random() - 0.5) * 2, (math.random() - 0.5) * 2, (math.random() - 0.5) * 2)
+					mini.CanCollide = true
+					mini.CustomPhysicalProperties = PhysicalProperties.new(0.1, 0.1, 1.0, 1.0, 1.0)
+					mini.Parent = workspace
+
+					-- 小さい弾にも軌跡をつける
+					local trail = Instance.new("Trail")
+					local att0 = Instance.new("Attachment", mini)
+					att0.Position = Vector3.new(0, 0.4, 0)
+					local att1 = Instance.new("Attachment", mini)
+					att1.Position = Vector3.new(0, -0.4, 0)
+					trail.Attachment0 = att0
+					trail.Attachment1 = att1
+					trail.Lifetime = 0.2
+					trail.Color = ColorSequence.new(mini.Color)
+					trail.Parent = mini
+
+					-- 四方八方にランダムな速度で飛ばす
+					local randomDir = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5).Unit
+					mini.Velocity = randomDir * math.random(80, 150)
+					mini:SetNetworkOwner(player)
+
+					local miniHitHumanoid = false
+					local spawnTime = tick()
+
+					mini.Touched:Connect(function(hitObj)
+						if miniHitHumanoid then
+							return
+						end
+						if mini.AssemblyLinearVelocity.Magnitude < 10 then
+							return
+						end
+						if not hitObj or not hitObj.Parent then
+							return
+						end
+
+						-- シールド反射
+						if hitObj.Name == "PlayerShield" then
+							local ownerId = hitObj:GetAttribute("OwnerId")
+							if ownerId == player.UserId then
+								return
+							end
+							local normal = hitObj.CFrame.LookVector
+							local currentVel = mini.AssemblyLinearVelocity
+							if currentVel:Dot(normal) < 0 then
+								mini.AssemblyLinearVelocity = (currentVel - 2 * currentVel:Dot(normal) * normal)
+									* GameConfig.Shield.BounceMultiplier
+								mini.Color = Color3.fromRGB(255, 255, 255)
+								trail.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
+								playSound(SOUND_BOUNCE, mini, 0.8, 1.5)
+							end
+							return
+						end
+
+						local hitHum = hitObj.Parent:FindFirstChild("Humanoid")
+						if hitHum then
+							-- ★撃った本人へのヒットは、散らばるまでの0.2秒間だけ無効にする（即死防止）
+							local isShooter = hitObj:IsDescendantOf(character)
+							if isShooter and (tick() - spawnTime < 0.2) then
+								return
+							end
+
+							-- 味方撃ちの無効
+							local targetPlayer = game.Players:GetPlayerFromCharacter(hitObj.Parent)
+							if targetPlayer and player.Team and targetPlayer.Team == player.Team then
+								miniHitHumanoid = true
+								mini:Destroy()
+								return
+							end
+
+							-- ダメージ処理
+							miniHitHumanoid = true
+							tagHumanoid(hitHum, player)
+							local damageMult = character:GetAttribute("DamageMultiplier") or 1.0
+							hitHum:TakeDamage(CLUSTER_DAMAGE * damageMult)
+							playSound(SOUND_HIT, hitObj, 0.8, 1.5)
+							mini:Destroy()
+						else
+							playSound(SOUND_BOUNCE, mini, 0.2, math.random(1.2, 1.5))
+						end
+					end)
+
+					-- 2〜3秒で自然消滅
+					Debris:AddItem(mini, 2.0 + math.random())
+				end
+
+				bullet:Destroy()
+				return
+			end
+			-- ==============================================
+
 			local humanoid = hit.Parent:FindFirstChild("Humanoid")
 			if humanoid then
 				local targetPlayer = game.Players:GetPlayerFromCharacter(hit.Parent)
@@ -355,10 +486,8 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 				hasHitHumanoid = true
 				tagHumanoid(humanoid, player)
 
-				-- ★ここから下を変更！（ダメージ計算に倍率を掛け算する）
 				local damageMult = character:GetAttribute("DamageMultiplier") or 1.0
 				humanoid:TakeDamage(stats.Damage * damageMult)
-				-- ★変更ここまで
 
 				playSound(SOUND_HIT, hit, 1.0, 1.0)
 				bullet:Destroy()

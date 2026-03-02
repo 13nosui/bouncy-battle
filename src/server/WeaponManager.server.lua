@@ -105,7 +105,7 @@ local function setupWeaponSpawners()
 					end
 
 					local sound = Instance.new("Sound")
-					sound.SoundId = "rbxassetid://6812196620"
+					sound.SoundId = "rbxassetid://139015702985837"
 					sound.Volume = 0.8
 					sound.Parent = character.HumanoidRootPart
 					sound:Play()

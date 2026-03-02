@@ -4,22 +4,22 @@ local GameConfig = {}
 -- === 武器ごとのパラメータ設定 ===
 GameConfig.Weapons = {
 	["BouncyGun"] = {
-		BulletSize = 1.5,
-		BulletSpeed = 150,
-		BulletGravity = 0.1,
-		BulletLife = 15,
-		Bounciness = 1.0,
-		Damage = 20,
-		FireCooldown = 0.5,
-		MaxAmmo = 10,
-		ReloadTime = 2.0,
-		BulletsPerShot = 1,
-		SpreadAngle = 0,
+		BulletSize = 1.5, -- 弾の大きさ（スタッド）
+		BulletSpeed = 150, -- 弾の飛ぶ速さ
+		BulletGravity = 0.1, -- 弾にかかる重力（0で無重力、1で通常の重力）
+		BulletLife = 15, -- 弾が自然消滅するまでの時間（秒）
+		Bounciness = 1.0, -- 弾の跳ね返りやすさ（1.0でよく跳ねる）
+		Damage = 20, -- 1発あたりのダメージ
+		FireCooldown = 0.5, -- 次の弾を撃つまでの待ち時間（秒）
+		MaxAmmo = 10, -- マガジンの最大弾数
+		ReloadTime = 2.0, -- リロードにかかる時間（秒）
+		BulletsPerShot = 1, -- 1回のクリックで同時に発射される弾の数
+		SpreadAngle = 0, -- 弾のばらつき角度（0で真っ直ぐ飛ぶ）
 
 		-- ★見た目の設定
-		UseRandomColor = true, -- 今まで通りランダムな虹色にする
-		BulletColor = Color3.fromRGB(255, 255, 0), -- UseRandomColorがfalseの場合の色
-		TrailDuration = 0.3, -- 軌跡（尻尾）の長さ
+		UseRandomColor = true, -- ランダムな虹色にするかどうか
+		BulletColor = Color3.fromRGB(255, 255, 0), -- UseRandomColorがfalseの場合の弾の色
+		TrailDuration = 0.3, -- 弾の軌跡（尻尾）が消えるまでの長さ
 	},
 	["BouncyShotgun"] = {
 		BulletSize = 1.0,
@@ -32,10 +32,10 @@ GameConfig.Weapons = {
 		MaxAmmo = 5,
 		ReloadTime = 2.5,
 		BulletsPerShot = 5,
-		SpreadAngle = 15,
+		SpreadAngle = 15, -- 15度に拡散する
 
 		UseRandomColor = false,
-		BulletColor = Color3.fromRGB(255, 80, 80), -- ショットガンは「赤」固定
+		BulletColor = Color3.fromRGB(255, 80, 80), -- ショットガンは「赤色」
 		TrailDuration = 0.2,
 	},
 	["BouncySMG"] = {
@@ -45,15 +45,36 @@ GameConfig.Weapons = {
 		BulletLife = 8,
 		Bounciness = 1.2,
 		Damage = 8,
-		FireCooldown = 0.12,
+		FireCooldown = 0.12, -- 高速連射
 		MaxAmmo = 30,
 		ReloadTime = 1.5,
 		BulletsPerShot = 1,
 		SpreadAngle = 5,
 
 		UseRandomColor = false,
-		BulletColor = Color3.fromRGB(50, 200, 255), -- SMGは「シアン（水色）」固定
+		BulletColor = Color3.fromRGB(50, 200, 255), -- SMGは「水色」
 		TrailDuration = 0.1,
+	},
+	["BouncyGrenade"] = {
+		BulletSize = 2.5, -- かなり大きい弾
+		BulletSpeed = 80, -- 弾の飛ぶスピードは遅め
+		BulletGravity = 0.8, -- 重力を強くして山なりに飛ばす
+		BulletLife = 5,
+		Bounciness = 0.3, -- あまり跳ねない（重い感じ）
+		Damage = 60, -- 爆発の中心ダメージ（特大！）
+		FireCooldown = 1.5, -- 連射はできない
+		MaxAmmo = 3, -- マガジンには3発だけ
+		ReloadTime = 3.0, -- リロードが遅い
+		BulletsPerShot = 1,
+		SpreadAngle = 0,
+
+		UseRandomColor = false,
+		BulletColor = Color3.fromRGB(40, 40, 40), -- 爆弾っぽく「黒・ダークグレー」
+		TrailDuration = 0.5,
+
+		-- ★爆発専用の特別設定
+		IsExplosive = true, -- 着弾時に爆発するかどうか
+		ExplosionRadius = 15, -- 爆風が届く範囲（スタッド）
 	},
 }
 

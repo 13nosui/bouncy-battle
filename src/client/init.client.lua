@@ -569,6 +569,7 @@ local WEAPONS = {
 	["BouncyGun"] = true,
 	["BouncyShotgun"] = true,
 	["BouncySMG"] = true,
+	["BouncyGrenade"] = true,
 }
 
 player.CharacterAdded:Connect(function(char)
@@ -655,6 +656,24 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 			{ Size = Vector3.new(3.5, 3.5, 3.5), Transparency = 1 }
 		):Play()
 		Debris:AddItem(flash, 0.1)
+	elseif effectType == "RubberExplosion" then
+		-- 爆発の瞬間に一瞬だけ広がる光（フラッシュ）のみを描画
+		local flash = Instance.new("Part")
+		flash.Shape = Enum.PartType.Ball
+		flash.Color = data.Color
+		flash.Material = Enum.Material.Neon
+		flash.Size = Vector3.new(1, 1, 1)
+		flash.Position = data.Position
+		flash.Anchored = true
+		flash.CanCollide = false
+		flash.Parent = workspace
+
+		TweenService:Create(
+			flash,
+			TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+			{ Size = Vector3.new(15, 15, 15), Transparency = 1 }
+		):Play()
+		Debris:AddItem(flash, 0.2)
 	end
 end)
 
