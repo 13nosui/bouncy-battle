@@ -15,20 +15,37 @@ end
 
 local cooldowns = {}
 
--- === 1. 能力ピックアップ台の処理 ===
+-- === 1. 能力・シールドピックアップ台の処理 ===
+local function assignSkillToSlot(player, skillName)
+	local sq = player:GetAttribute("SlotQ") or ""
+	local sz = player:GetAttribute("SlotZ") or ""
+
+	-- すでに同じものを持っているなら拾わない
+	if sq == skillName or sz == skillName then
+		return false
+	end
+
+	if sq == "" then
+		player:SetAttribute("SlotQ", skillName)
+	elseif sz == "" then
+		player:SetAttribute("SlotZ", skillName)
+	else
+		-- どちらも埋まっている場合は、Q枠に上書きする
+		player:SetAttribute("SlotQ", skillName)
+	end
+	return true
+end
+
 local function setupAbilitySpawners()
 	for _, spawner in ipairs(Workspace:GetDescendants()) do
 		if spawner.Name == "AbilitySpawner" and spawner:IsA("Model") then
 			local abilityNameValue = spawner:FindFirstChild("AbilityName")
-
 			if abilityNameValue then
-				-- ★変更: 古いClickDetectorがあれば削除
 				local clickDetector = spawner:FindFirstChildOfClass("ClickDetector")
 				if clickDetector then
 					clickDetector:Destroy()
 				end
 
-				-- ★変更: 代わりにProximityPrompt(近づいてEキー)を作成
 				local targetPart = spawner:FindFirstChild("Part") or spawner.PrimaryPart or spawner
 				local prompt = Instance.new("ProximityPrompt")
 				prompt.ActionText = "Get Ability"
@@ -38,23 +55,22 @@ local function setupAbilitySpawners()
 				prompt.MaxActivationDistance = 12
 				prompt.Parent = targetPart
 
-				-- Eキーが押された時の処理
 				prompt.Triggered:Connect(function(player)
 					local abilityName = abilityNameValue.Value
 					if not GameConfig.Abilities[abilityName] then
 						return
 					end
 
-					player:SetAttribute("CurrentAbility", abilityName)
-
-					local char = player.Character
-					if char and char:FindFirstChild("HumanoidRootPart") then
-						local sound = Instance.new("Sound")
-						sound.SoundId = "rbxassetid://86070307558627"
-						sound.Volume = 1.0
-						sound.Parent = char.HumanoidRootPart
-						sound:Play()
-						Debris:AddItem(sound, 1)
+					if assignSkillToSlot(player, abilityName) then
+						local char = player.Character
+						if char and char:FindFirstChild("HumanoidRootPart") then
+							local sound = Instance.new("Sound")
+							sound.SoundId = "rbxassetid://86070307558627"
+							sound.Volume = 1.0
+							sound.Parent = char.HumanoidRootPart
+							sound:Play()
+							Debris:AddItem(sound, 1)
+						end
 					end
 				end)
 			end
@@ -62,30 +78,24 @@ local function setupAbilitySpawners()
 			local targetPart = spawner:FindFirstChild("Part") or spawner.PrimaryPart or spawner
 			local prompt = Instance.new("ProximityPrompt")
 			prompt.ActionText = "Equip"
-			prompt.ObjectText = "Energy Shield" -- 表示名
+			prompt.ObjectText = "Energy Shield"
 			prompt.KeyboardKeyCode = Enum.KeyCode.E
 			prompt.RequiresLineOfSight = false
 			prompt.MaxActivationDistance = 12
 			prompt.Parent = targetPart
 
 			prompt.Triggered:Connect(function(player)
-				-- すでに持っている場合は何もしない
-				if player:GetAttribute("HasShield") then
-					return
-				end
-
-				-- シールドを付与
-				player:SetAttribute("HasShield", true)
-
-				local char = player.Character
-				if char and char:FindFirstChild("HumanoidRootPart") then
-					local sound = Instance.new("Sound")
-					sound.SoundId = "rbxassetid://86070307558627"
-					sound.Volume = 1.0
-					sound.Pitch = 1.2 -- 超能力と少し違う音の高さにする
-					sound.Parent = char.HumanoidRootPart
-					sound:Play()
-					Debris:AddItem(sound, 1)
+				if assignSkillToSlot(player, "Energy Shield") then
+					local char = player.Character
+					if char and char:FindFirstChild("HumanoidRootPart") then
+						local sound = Instance.new("Sound")
+						sound.SoundId = "rbxassetid://86070307558627"
+						sound.Volume = 1.0
+						sound.Pitch = 1.2
+						sound.Parent = char.HumanoidRootPart
+						sound:Play()
+						Debris:AddItem(sound, 1)
+					end
 				end
 			end)
 		end
@@ -98,12 +108,16 @@ task.spawn(function()
 end)
 
 -- === 2. 能力の発動処理 ===
-abilityEvent.OnServerEvent:Connect(function(player)
-	local abilityName = player:GetAttribute("CurrentAbility")
-	if not abilityName then
+abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
+	local sq = player:GetAttribute("SlotQ")
+	local sz = player:GetAttribute("SlotZ")
+
+	-- 本当にQかZに持っているかチェック
+	if sq ~= requestedSkill and sz ~= requestedSkill then
 		return
 	end
 
+	local abilityName = requestedSkill
 	local abilityConfig = GameConfig.Abilities[abilityName]
 	if not abilityConfig then
 		return
@@ -338,7 +352,6 @@ abilityEvent.OnServerEvent:Connect(function(player)
 
 		Debris:AddItem(hitZone, abilityConfig.Duration)
 	elseif abilityName == "Giant" or abilityName == "Mini" then
-		-- 音の再生（Giantは低い音、Miniは高い音）
 		local sound = Instance.new("Sound")
 		sound.SoundId = "rbxassetid://2868285516"
 		sound.Volume = 1.0
@@ -347,10 +360,8 @@ abilityEvent.OnServerEvent:Connect(function(player)
 		sound:Play()
 		Debris:AddItem(sound, 2)
 
-		-- 攻撃力倍率のセット（init.server.luaでダメージ計算に使われます）
 		char:SetAttribute("DamageMultiplier", abilityConfig.DamageMultiplier)
 
-		-- スケール（サイズ）の変更
 		local humanoid = char:FindFirstChild("Humanoid")
 		local originalScales = {}
 		if humanoid then
@@ -359,7 +370,6 @@ abilityEvent.OnServerEvent:Connect(function(player)
 				local val = humanoid:FindFirstChild(propName)
 				if val and val:IsA("NumberValue") then
 					originalScales[val] = val.Value
-					-- Tweenを使って滑らかに伸び縮みさせる
 					TweenService:Create(
 						val,
 						TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
@@ -369,7 +379,6 @@ abilityEvent.OnServerEvent:Connect(function(player)
 			end
 		end
 
-		-- 変身時のエフェクト（ポン！という煙）
 		local attachment = Instance.new("Attachment", rootPart)
 		local poof = Instance.new("ParticleEmitter")
 		poof.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
@@ -385,13 +394,11 @@ abilityEvent.OnServerEvent:Connect(function(player)
 		poof:Emit(20)
 		Debris:AddItem(attachment, 2)
 
-		-- 一定時間後に元に戻す
 		task.delay(abilityConfig.Duration, function()
 			if char then
 				char:SetAttribute("DamageMultiplier", 1.0)
 			end
 
-			-- 戻る時の音と煙
 			if rootPart and rootPart.Parent then
 				local revSound = Instance.new("Sound")
 				revSound.SoundId = "rbxassetid://2868285516"
@@ -408,7 +415,6 @@ abilityEvent.OnServerEvent:Connect(function(player)
 				Debris:AddItem(revAtt, 2)
 			end
 
-			-- スケールを元に戻す
 			for val, origScale in pairs(originalScales) do
 				if val and val.Parent then
 					TweenService:Create(
@@ -421,14 +427,13 @@ abilityEvent.OnServerEvent:Connect(function(player)
 		end)
 	elseif abilityName == "XRay" then
 		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://2868285516" -- ピコーン！という起動音
+		sound.SoundId = "rbxassetid://2868285516"
 		sound.Volume = 1.0
 		sound.Pitch = 1.2
 		sound.Parent = rootPart
 		sound:Play()
 		Debris:AddItem(sound, 2)
 
-		-- 透視エフェクトは「自分だけ」に見える必要があるので、クライアント（自分の画面）に命令を送る
 		abilityEvent:FireClient(player, "XRay", abilityConfig)
 	end
 end)

@@ -16,10 +16,10 @@ local SOUND_HIT = "rbxassetid://123589129673882"
 local SOUND_EMPTY = "rbxassetid://9117048518"
 local SOUND_RELOAD = "rbxassetid://506273075"
 local SOUND_SHIELD = "rbxassetid://12222076"
-local SOUND_EXPLODE = "rbxassetid://12222030" -- ★追加: 爆発音
+local SOUND_EXPLODE = "rbxassetid://12222030"
 
 local cooldowns = {}
-local guardCooldowns = {} -- ★シールドのクールダウン管理
+local guardCooldowns = {}
 local reloadingStatus = {}
 
 local function getRemote(name)
@@ -36,7 +36,7 @@ local fireEvent = getRemote("FireBullet")
 local effectEvent = getRemote("PlayEffect")
 local reloadEvent = getRemote("Reload")
 local readyEvent = getRemote("PlayerReady")
-local guardEvent = getRemote("GuardEvent") -- ★シールド用イベント
+local guardEvent = getRemote("GuardEvent")
 
 local function playSound(soundId, parentPart, volume, pitch)
 	local sound = Instance.new("Sound")
@@ -97,8 +97,9 @@ end
 
 Players.PlayerAdded:Connect(function(player)
 	player:SetAttribute("IsReady", false)
-	-- ★追加: 初期状態ではシールドを持っていない
-	player:SetAttribute("HasShield", false)
+	-- ★変更: HasShieldなどを廃止し、SlotQとSlotZを用意する
+	player:SetAttribute("SlotQ", "")
+	player:SetAttribute("SlotZ", "")
 
 	player.CharacterAdded:Connect(function(character)
 		local healthScript = character:WaitForChild("Health", 5)
@@ -112,8 +113,9 @@ Players.PlayerAdded:Connect(function(player)
 		character:SetAttribute("IsReloading", false)
 		character:SetAttribute("EmptyClicked", false)
 
-		-- ★追加: 死んで復活するたびにシールドを失うようにする
-		player:SetAttribute("HasShield", false)
+		-- ★変更: 死んで復活するたびにスキルを失う
+		player:SetAttribute("SlotQ", "")
+		player:SetAttribute("SlotZ", "")
 	end)
 end)
 
@@ -128,7 +130,10 @@ end)
 
 -- === ★シールドの展開処理 ===
 guardEvent.OnServerEvent:Connect(function(player)
-	if not player:GetAttribute("HasShield") then
+	-- ★変更: Q枠かZ枠のどちらかにシールドがセットされているか確認
+	local sq = player:GetAttribute("SlotQ")
+	local sz = player:GetAttribute("SlotZ")
+	if sq ~= "Energy Shield" and sz ~= "Energy Shield" then
 		return
 	end
 
@@ -148,29 +153,19 @@ guardEvent.OnServerEvent:Connect(function(player)
 		return
 	end
 
-	-- シールドを作成
 	local shield = Instance.new("Part")
 	shield.Name = "PlayerShield"
-
-	-- ★変更: ボールではなく、前方に展開する「フラットな壁（シールド）」に変更
 	shield.Shape = Enum.PartType.Block
 	shield.Size = Vector3.new(8, 6, 0.5)
-
 	shield.Material = Enum.Material.Glass
 	shield.Transparency = 0.7
 	shield.Color = Color3.fromRGB(0, 255, 255)
-
 	shield.CanCollide = false
 	shield.Massless = true
 	shield.CastShadow = false
 
-	-- ★変更: キャラクターの3.5スタッド「前」に展開する
 	shield.CFrame = hrp.CFrame * CFrame.new(0, 0, -3.5)
-
-	-- ★重要: 1人称視点で透明化されないように Workspace に入れる
 	shield.Parent = workspace
-
-	-- ★重要: 誰のシールドか判定するためにAttribute(目印)をつける
 	shield:SetAttribute("OwnerId", player.UserId)
 
 	local weld = Instance.new("WeldConstraint")
@@ -244,7 +239,6 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 		spawnPos = spawnPos + baseDirection * 5
 	end
 
-	-- ★変更: 爆発武器は発射音を重くする
 	if stats.IsExplosive then
 		playSound(SOUND_SHOOT, sourcePart, 1.2, 0.6)
 	else
@@ -310,7 +304,6 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 				return
 			end
 
-			-- ★修正1: 爆発物（グレネード）は速度が遅くても、何かに触れたら絶対爆発させる！
 			if not stats.IsExplosive and bullet.AssemblyLinearVelocity.Magnitude < 10 then
 				return
 			end
@@ -319,11 +312,10 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 				return
 			end
 
-			-- === ★シールドに当たった場合の「反射」処理 ===
 			if hit.Name == "PlayerShield" then
 				local ownerId = hit:GetAttribute("OwnerId")
 				if ownerId == player.UserId then
-					return -- 自分のシールドはすり抜ける
+					return
 				else
 					local normal = hit.CFrame.LookVector
 					local currentVel = bullet.AssemblyLinearVelocity
@@ -349,14 +341,12 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 			end
 
 			-- ==============================================
-			-- ★爆発処理（ゴム弾が飛び散る！）
-			-- ==============================================
+			-- ★爆発処理
 			-- ==============================================
 			if stats.IsExplosive then
 				hasHitHumanoid = true
 				playSound(SOUND_EXPLODE, bullet, 1.5, 0.8)
 
-				-- 1. ド派手な吹き飛ばし（ノックバック）だけを残し、透明な一括ダメージ判定は消す
 				local explosion = Instance.new("Explosion")
 				explosion.Position = bullet.Position
 				explosion.BlastRadius = stats.ExplosionRadius
@@ -365,15 +355,13 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 				explosion.Visible = false
 				explosion.Parent = workspace
 
-				-- 画面をフラッシュさせる合図
 				effectEvent:FireAllClients("RubberExplosion", {
 					Position = bullet.Position,
 					Color = bullet.Color,
 				})
 
-				-- 2. ★本物の「小さなゴム弾」を15発生成して四方八方に飛ばす！
 				local CLUSTER_COUNT = 15
-				local CLUSTER_DAMAGE = 15 -- 1発当たると15ダメージ
+				local CLUSTER_DAMAGE = 15
 
 				for j = 1, CLUSTER_COUNT do
 					local mini = Instance.new("Part")
@@ -388,19 +376,17 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 					mini.CustomPhysicalProperties = PhysicalProperties.new(0.1, 0.1, 1.0, 1.0, 1.0)
 					mini.Parent = workspace
 
-					-- 小さい弾にも軌跡をつける
-					local trail = Instance.new("Trail")
-					local att0 = Instance.new("Attachment", mini)
-					att0.Position = Vector3.new(0, 0.4, 0)
-					local att1 = Instance.new("Attachment", mini)
-					att1.Position = Vector3.new(0, -0.4, 0)
-					trail.Attachment0 = att0
-					trail.Attachment1 = att1
-					trail.Lifetime = 0.2
-					trail.Color = ColorSequence.new(mini.Color)
-					trail.Parent = mini
+					local trail2 = Instance.new("Trail")
+					local att0_2 = Instance.new("Attachment", mini)
+					att0_2.Position = Vector3.new(0, 0.4, 0)
+					local att1_2 = Instance.new("Attachment", mini)
+					att1_2.Position = Vector3.new(0, -0.4, 0)
+					trail2.Attachment0 = att0_2
+					trail2.Attachment1 = att1_2
+					trail2.Lifetime = 0.2
+					trail2.Color = ColorSequence.new(mini.Color)
+					trail2.Parent = mini
 
-					-- 四方八方にランダムな速度で飛ばす
 					local randomDir = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5).Unit
 					mini.Velocity = randomDir * math.random(80, 150)
 					mini:SetNetworkOwner(player)
@@ -419,7 +405,6 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 							return
 						end
 
-						-- シールド反射
 						if hitObj.Name == "PlayerShield" then
 							local ownerId = hitObj:GetAttribute("OwnerId")
 							if ownerId == player.UserId then
@@ -431,7 +416,7 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 								mini.AssemblyLinearVelocity = (currentVel - 2 * currentVel:Dot(normal) * normal)
 									* GameConfig.Shield.BounceMultiplier
 								mini.Color = Color3.fromRGB(255, 255, 255)
-								trail.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
+								trail2.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
 								playSound(SOUND_BOUNCE, mini, 0.8, 1.5)
 							end
 							return
@@ -439,13 +424,11 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 
 						local hitHum = hitObj.Parent:FindFirstChild("Humanoid")
 						if hitHum then
-							-- ★撃った本人へのヒットは、散らばるまでの0.2秒間だけ無効にする（即死防止）
 							local isShooter = hitObj:IsDescendantOf(character)
 							if isShooter and (tick() - spawnTime < 0.2) then
 								return
 							end
 
-							-- 味方撃ちの無効
 							local targetPlayer = game.Players:GetPlayerFromCharacter(hitObj.Parent)
 							if targetPlayer and player.Team and targetPlayer.Team == player.Team then
 								miniHitHumanoid = true
@@ -453,7 +436,6 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 								return
 							end
 
-							-- ダメージ処理
 							miniHitHumanoid = true
 							tagHumanoid(hitHum, player)
 							local damageMult = character:GetAttribute("DamageMultiplier") or 1.0
@@ -465,7 +447,6 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 						end
 					end)
 
-					-- 2〜3秒で自然消滅
 					Debris:AddItem(mini, 2.0 + math.random())
 				end
 

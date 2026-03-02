@@ -1,3 +1,4 @@
+-- src/client/init.client.lua
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -5,6 +6,18 @@ local ContextActionService = game:GetService("ContextActionService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 local Debris = game:GetService("Debris")
+
+-- ★修正: 武器を拾うたびにRobloxが勝手にUIを復活させるのを防ぐ「最強の対策」
+local StarterGui = game:GetService("StarterGui")
+task.spawn(function()
+	-- ゲーム中ずっと、0.1秒ごとに「消せ！」と命令し続ける（重くはならないので安心してください）
+	while true do
+		pcall(function()
+			StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Backpack, false)
+		end)
+		task.wait(0.1)
+	end
+end)
 
 local player = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -98,9 +111,6 @@ materialLabel.TextSize = 20
 materialLabel.Text = "MAT: " .. MATERIALS[currentMaterialIndex].name
 materialLabel.Parent = screenGui
 
--- ==========================================
--- ★追加: PC版ビルド用 左側UIパネル（ボタン＆ショートカット一覧）
--- ==========================================
 local pcControlsFrame = Instance.new("Frame")
 pcControlsFrame.Name = "PCControlsFrame"
 pcControlsFrame.Size = UDim2.new(0, 180, 0, 350)
@@ -151,7 +161,6 @@ local function createPCButton(text, order, actionName)
 	return btn
 end
 
--- 各ボタンの生成
 createPCButton("[ R ]  ROTATE", 1, "ReloadOrRotateAction")
 createPCButton("[ F ]  SHAPE", 2, "ToggleShapeAction")
 createPCButton("[ G ]  COLOR", 3, "ToggleColorAction")
@@ -160,7 +169,6 @@ createPCButton("[ J ]  SAVE", 5, "SaveAction")
 createPCButton("[ K ]  LOAD", 6, "LoadAction")
 createPCButton("[ P ]  PUBLISH", 7, "PublishAction")
 
--- 押した時のフラッシュ（光る）エフェクト
 local function flashButton(actionName)
 	local btn = pcButtons[actionName]
 	if btn then
@@ -175,7 +183,7 @@ end
 
 local isEquipped = false
 local isBuildEquipped = false
-local isMouseFree = false -- ★追加: Altキーでマウスを解放するフラグ
+local isMouseFree = false
 
 local function getRayResult()
 	local rayParams = RaycastParams.new()
@@ -236,6 +244,35 @@ local function handleReloadOrRotate(actionName, inputState, inputObject)
 	return Enum.ContextActionResult.Pass
 end
 
+-- === ★スキル（シールド・超能力）の発動 ===
+local function triggerSkill(slotName)
+	local skillName = player:GetAttribute(slotName)
+	if skillName == "Energy Shield" then
+		if isEquipped then
+			guardEvent:FireServer()
+		end
+	elseif skillName and skillName ~= "" then
+		-- 超能力の場合は、発動したい能力の名前をサーバーに送る
+		abilityEvent:FireServer(skillName)
+	end
+end
+
+local function handleSkillQ(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
+		triggerSkill("SlotQ")
+		return Enum.ContextActionResult.Sink
+	end
+	return Enum.ContextActionResult.Pass
+end
+
+local function handleSkillZ(actionName, inputState, inputObject)
+	if inputState == Enum.UserInputState.Begin then
+		triggerSkill("SlotZ")
+		return Enum.ContextActionResult.Sink
+	end
+	return Enum.ContextActionResult.Pass
+end
+
 local function tryDestroy()
 	if not isBuildEquipped then
 		return
@@ -249,26 +286,6 @@ end
 local function handleDestroy(actionName, inputState, inputObject)
 	if inputState == Enum.UserInputState.Begin then
 		tryDestroy()
-		return Enum.ContextActionResult.Sink
-	end
-	return Enum.ContextActionResult.Pass
-end
-
-local function handleGuard(actionName, inputState, inputObject)
-	if inputState == Enum.UserInputState.Begin then
-		-- ★変更: 銃を装備していて、かつ「シールドを持っている」時だけ発動する
-		if isEquipped and player:GetAttribute("HasShield") then
-			guardEvent:FireServer()
-			return Enum.ContextActionResult.Sink
-		end
-	end
-	return Enum.ContextActionResult.Pass
-end
-
-local function handleAbility(actionName, inputState, inputObject)
-	if inputState == Enum.UserInputState.Begin then
-		-- 持っているかどうかはサーバー側で判定するので、とりあえず送信する
-		abilityEvent:FireServer()
 		return Enum.ContextActionResult.Sink
 	end
 	return Enum.ContextActionResult.Pass
@@ -356,7 +373,6 @@ local function handleToggleMaterial(actionName, inputState, inputObject)
 	return Enum.ContextActionResult.Pass
 end
 
--- ★追加: UIボタンを直接クリックした時の処理
 for actionName, btn in pairs(pcButtons) do
 	btn.MouseButton1Click:Connect(function()
 		if not isBuildEquipped then
@@ -380,7 +396,6 @@ for actionName, btn in pairs(pcButtons) do
 	end)
 end
 
--- ★変更: Altキーでマウス解放対応
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if input.KeyCode == Enum.KeyCode.LeftAlt then
 		isMouseFree = true
@@ -417,7 +432,6 @@ local function handleToggleWeapon(actionName, inputState, inputObject)
 			return
 		end
 
-		-- ★変更: 手に持っているBouncy系の武器を探す
 		local currentTool = nil
 		for _, child in ipairs(character:GetChildren()) do
 			if child:IsA("Tool") and child.Name:match("Bouncy") then
@@ -431,7 +445,6 @@ local function handleToggleWeapon(actionName, inputState, inputObject)
 		else
 			local backpack = player:FindFirstChild("Backpack")
 			if backpack then
-				-- ★変更: バックパックの中にあるBouncy系の武器を探す
 				local toolToEquip = nil
 				for _, item in ipairs(backpack:GetChildren()) do
 					if item:IsA("Tool") and item.Name:match("Bouncy") then
@@ -476,12 +489,15 @@ ContextActionService:BindAction("SaveAction", handleSave, true, Enum.KeyCode.J, 
 ContextActionService:BindAction("LoadAction", handleLoad, true, Enum.KeyCode.K, Enum.KeyCode.DPadDown)
 ContextActionService:BindAction("PublishAction", handlePublish, true, Enum.KeyCode.P, Enum.KeyCode.DPadLeft)
 ContextActionService:BindAction("ToggleWeapon", handleToggleWeapon, false, Enum.KeyCode.ButtonY)
-ContextActionService:BindAction("GuardAction", handleGuard, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
-ContextActionService:SetPosition("GuardAction", UDim2.new(1, -100, 1, -100))
-ContextActionService:SetTitle("GuardAction", "GUARD")
-ContextActionService:BindAction("AbilityAction", handleAbility, true, Enum.KeyCode.Z, Enum.KeyCode.ButtonR1)
-ContextActionService:SetPosition("AbilityAction", UDim2.new(1, -100, 1, -100))
-ContextActionService:SetTitle("AbilityAction", "ABILITY (Z)")
+
+-- ★Q枠とZ枠のキー登録
+ContextActionService:BindAction("SkillQAction", handleSkillQ, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
+ContextActionService:SetPosition("SkillQAction", UDim2.new(1, -100, 1, -100))
+ContextActionService:SetTitle("SkillQAction", "SKILL (Q)")
+
+ContextActionService:BindAction("SkillZAction", handleSkillZ, true, Enum.KeyCode.Z, Enum.KeyCode.ButtonR1)
+ContextActionService:SetPosition("SkillZAction", UDim2.new(1, -100, 1, -100))
+ContextActionService:SetTitle("SkillZAction", "SKILL (Z)")
 
 ContextActionService:SetPosition("FireAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("ReloadOrRotateAction", UDim2.new(1, -100, 1, -100))
@@ -493,40 +509,22 @@ ContextActionService:SetPosition("SaveAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("LoadAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("PublishAction", UDim2.new(1, -100, 1, -100))
 
--- ★追加: シールドの有無でボタンの文字を変える処理
-local function updateGuardButton()
-	if player:GetAttribute("HasShield") then
-		ContextActionService:SetTitle("GuardAction", "GUARD (Q)")
-	else
-		ContextActionService:SetTitle("GuardAction", "NO SHIELD")
-	end
-end
-
--- 監視（シールドを取得した瞬間にボタンの文字を更新）
-player:GetAttributeChangedSignal("HasShield"):Connect(function()
-	if isEquipped then
-		updateGuardButton()
-	end
-end)
-
 local function onGunEquip()
 	isEquipped = true
 	screenGui.Enabled = true
 	shapeLabel.Visible = false
 	colorLabel.Visible = false
 	materialLabel.Visible = false
-	pcControlsFrame.Visible = false -- 武器装備時は隠す
+	pcControlsFrame.Visible = false
 
 	ContextActionService:SetTitle("FireAction", "FIRE")
 	ContextActionService:SetTitle("ReloadOrRotateAction", "RLD")
-	ContextActionService:SetTitle("GuardAction", "GUARD (Q)")
 end
 
 local function onGunUnequip()
 	isEquipped = false
 	if not isBuildEquipped then
 		screenGui.Enabled = false
-		-- ★復活: ツールをしまった時に1回だけマウス状態をリセットする
 		UserInputService.MouseIconEnabled = true
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end
@@ -538,8 +536,6 @@ local function onBuildEquip()
 	shapeLabel.Visible = true
 	colorLabel.Visible = true
 	materialLabel.Visible = true
-
-	-- ★修正: 判定を消して「ツールを持ったら絶対に表示する」ようにしました！
 	pcControlsFrame.Visible = true
 
 	ContextActionService:SetTitle("FireAction", "BUILD")
@@ -555,16 +551,14 @@ end
 
 local function onBuildUnequip()
 	isBuildEquipped = false
-	pcControlsFrame.Visible = false -- ツールをしまったら隠す
+	pcControlsFrame.Visible = false
 	if not isEquipped then
 		screenGui.Enabled = false
-		-- ★復活: ツールをしまった時に1回だけマウス状態をリセットする
 		UserInputService.MouseIconEnabled = true
 		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end
 end
 
--- 武器のリストを定義
 local WEAPONS = {
 	["BouncyGun"] = true,
 	["BouncyShotgun"] = true,
@@ -584,7 +578,6 @@ player.CharacterAdded:Connect(function(char)
 	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 
 	char.ChildAdded:Connect(function(child)
-		-- ★変更: リストにある武器ならONにする
 		if child:IsA("Tool") and WEAPONS[child.Name] then
 			onGunEquip()
 		elseif child:IsA("Tool") and child.Name == "BuildTool" then
@@ -592,7 +585,6 @@ player.CharacterAdded:Connect(function(char)
 		end
 	end)
 	char.ChildRemoved:Connect(function(child)
-		-- ★変更: リストにある武器ならOFFにする
 		if child:IsA("Tool") and WEAPONS[child.Name] then
 			onGunUnequip()
 		elseif child:IsA("Tool") and child.Name == "BuildTool" then
@@ -601,7 +593,6 @@ player.CharacterAdded:Connect(function(char)
 	end)
 end)
 
--- ★変更: スポーン直後にすでに持っていた場合の判定
 if player.Character then
 	for weaponName, _ in pairs(WEAPONS) do
 		if player.Character:FindFirstChild(weaponName) then
@@ -614,7 +605,6 @@ if player.Character then
 	end
 end
 
--- ★修正: 非装備時はRoblox標準のカメラ操作を邪魔しないように、何もしない(elseを削除)
 RunService.RenderStepped:Connect(function()
 	if isEquipped or isBuildEquipped then
 		if isMouseFree then
@@ -657,7 +647,6 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 		):Play()
 		Debris:AddItem(flash, 0.1)
 	elseif effectType == "RubberExplosion" then
-		-- 爆発の瞬間に一瞬だけ広がる光（フラッシュ）のみを描画
 		local flash = Instance.new("Part")
 		flash.Shape = Enum.PartType.Ball
 		flash.Color = data.Color
@@ -687,43 +676,32 @@ abilityEvent.OnClientEvent:Connect(function(abilityType, config)
 				root.AssemblyLinearVelocity = Vector3.new(currentVel.X, config.JumpVelocity, currentVel.Z)
 			end
 		end
-
-	-- ★壁の透視（XRay）を受け取った時の処理
 	elseif abilityType == "XRay" then
 		local char = player.Character
 		if not char then
 			return
 		end
 
-		-- 能力の終了時間を計算
 		local endTime = tick() + config.Duration
 
-		-- 効果時間中、定期的に「新しい敵」がいないかチェックしてハイライトを付ける
 		task.spawn(function()
 			while tick() < endTime do
-				-- Workspace内のすべてのキャラクターをチェック
 				for _, child in ipairs(workspace:GetChildren()) do
 					if child:IsA("Model") and child:FindFirstChild("Humanoid") and child ~= char then
-						-- まだハイライトがついていなければ付ける
 						if not child:FindFirstChild("XRayHighlight") then
 							local hl = Instance.new("Highlight")
 							hl.Name = "XRayHighlight"
-							hl.FillColor = Color3.fromRGB(255, 0, 0) -- 赤色
+							hl.FillColor = Color3.fromRGB(255, 0, 0)
 							hl.FillTransparency = 0.5
-							hl.OutlineColor = Color3.fromRGB(255, 255, 255) -- 白い枠線
+							hl.OutlineColor = Color3.fromRGB(255, 255, 255)
 							hl.OutlineTransparency = 0
-
-							-- ★これが壁を透ける魔法のプロパティ！
 							hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
-
 							hl.Parent = child
-
-							-- 能力の終了時間に合わせて自動的に消えるようにする
 							Debris:AddItem(hl, endTime - tick())
 						end
 					end
 				end
-				task.wait(0.5) -- 0.5秒ごとにチェック（途中でリスポーンしたBotも逃さない）
+				task.wait(0.5)
 			end
 		end)
 	end
