@@ -399,7 +399,14 @@ local function startRound(mode, participants)
 			local backpack = player:FindFirstChild("Backpack")
 			if backpack and not backpack:FindFirstChild("BuildTool") then
 				local tool = BuildToolTemplate:Clone()
+				tool:SetAttribute("Slot", 0) -- スロット1に登録
 				tool.Parent = backpack
+
+				local char = player.Character
+				local hum = char and char:FindFirstChild("Humanoid")
+				if hum then
+					hum:EquipTool(tool) -- 強制的に手に持たせる
+				end
 			end
 		end
 	end
@@ -528,7 +535,13 @@ Players.PlayerAdded:Connect(function(player)
 				local backpack = player:FindFirstChild("Backpack")
 				if backpack and not backpack:FindFirstChild("BuildTool") then
 					local tool = BuildToolTemplate:Clone()
+					tool:SetAttribute("Slot", 0) -- スロット1に登録
 					tool.Parent = backpack
+
+					local hum = character:FindFirstChild("Humanoid")
+					if hum then
+						hum:EquipTool(tool) -- 強制的に手に持たせる
+					end
 				end
 			end
 		end)

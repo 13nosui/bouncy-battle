@@ -85,6 +85,9 @@ local function createSlot(slotName, keybindStr, layoutOrder)
 end
 
 -- 4つのスロットを生成
+local slotWeapon0 = createSlot("Slot_Weapon0", "0", 0) -- ★追加: スロット0を作る
+slotWeapon0.Visible = false -- ★追加: 最初は隠しておく（持っている時だけ表示する）
+
 local slotWeapon1 = createSlot("Slot_Weapon1", "1", 1)
 local slotWeapon2 = createSlot("Slot_Weapon2", "2", 2)
 local slotAbilityQ = createSlot("Slot_AbilityQ", "Q", 3)
@@ -92,7 +95,7 @@ local slotAbilityZ = createSlot("Slot_AbilityZ", "Z", 4)
 
 -- スロットの文字を最新の状態に書き換える関数
 local function updateSlots()
-	local tool1, tool2
+	local tool0, tool1, tool2
 	local backpack = player:FindFirstChild("Backpack")
 	local char = player.Character
 
@@ -103,6 +106,9 @@ local function updateSlots()
 		end
 		for _, item in ipairs(parent:GetChildren()) do
 			if item:IsA("Tool") then
+				if item:GetAttribute("Slot") == 0 then
+					tool0 = item
+				end
 				if item:GetAttribute("Slot") == 1 then
 					tool1 = item
 				end
@@ -117,6 +123,9 @@ local function updateSlots()
 	checkTools(char)
 
 	-- 1. 武器スロットの名前更新
+	slotWeapon0.ItemName.Text = tool0 and tool0.Name or "Empty"
+	slotWeapon0.Visible = (tool0 ~= nil)
+
 	slotWeapon1.ItemName.Text = tool1 and tool1.Name or "Empty"
 	slotWeapon2.ItemName.Text = tool2 and tool2.Name or "Empty"
 
@@ -133,6 +142,7 @@ local function updateSlots()
 		end
 	end
 
+	setHighlight(slotWeapon0, tool0)
 	setHighlight(slotWeapon1, tool1)
 	setHighlight(slotWeapon2, tool2)
 
@@ -195,17 +205,27 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 		return nil
 	end
 
+	-- ★修正: 装備と収納を切り替える（トグルする）処理に賢く変更！
+	local function toggleTool(slotNum)
+		local tool = getToolBySlot(slotNum)
+		if tool then
+			if tool.Parent == char then
+				-- すでに手に持っている（キャラクターの中にある）場合はしまう
+				humanoid:UnequipTools()
+			else
+				-- そうでなければ装備する
+				humanoid:EquipTool(tool)
+			end
+		end
+	end
+
 	-- キー判定
-	if input.KeyCode == Enum.KeyCode.One then
-		local tool = getToolBySlot(1)
-		if tool then
-			humanoid:EquipTool(tool)
-		end
+	if input.KeyCode == Enum.KeyCode.Zero then -- ★追加
+		toggleTool(0)
+	elseif input.KeyCode == Enum.KeyCode.One then
+		toggleTool(1)
 	elseif input.KeyCode == Enum.KeyCode.Two then
-		local tool = getToolBySlot(2)
-		if tool then
-			humanoid:EquipTool(tool)
-		end
+		toggleTool(2)
 	end
 end)
 

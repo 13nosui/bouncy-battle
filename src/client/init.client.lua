@@ -27,6 +27,7 @@ local effectEvent = ReplicatedStorage:WaitForChild("PlayEffect")
 local guardEvent = ReplicatedStorage:WaitForChild("GuardEvent")
 local reloadEvent = ReplicatedStorage:WaitForChild("Reload")
 local abilityEvent = ReplicatedStorage:WaitForChild("AbilityEvent")
+local buildEvent = ReplicatedStorage:WaitForChild("BuildEvent")
 
 local CROSSHAIR_IMAGE = "rbxassetid://128000667256203"
 local CROSSHAIR_SIZE = 80
