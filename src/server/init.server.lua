@@ -122,6 +122,7 @@ Players.PlayerAdded:Connect(function(player)
 					character:SetAttribute("MaxAmmo", stats.MaxAmmo)
 					character:SetAttribute("IsReloading", false)
 					character:SetAttribute("EmptyClicked", false)
+					playSound(SOUND_RELOAD, character:FindFirstChild("Head"), 0.8, 1.2)
 				end
 			end
 		end)
