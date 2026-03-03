@@ -370,3 +370,35 @@ end
 closeBtn.MouseButton1Click:Connect(function()
 	loadoutScreen.Enabled = false
 end)
+
+-- ==========================================
+-- ★追加: ゲームの進行メッセージ（カウントダウン等）の復活
+-- ==========================================
+local gameMessageEvent = ReplicatedStorage:WaitForChild("GameMessage", 5)
+
+local messageLabel = Instance.new("TextLabel")
+messageLabel.Name = "GameMessageLabel"
+messageLabel.Size = UDim2.new(1, 0, 0, 80)
+messageLabel.Position = UDim2.new(0, 0, 0.15, 0) -- 画面の上の方に配置
+messageLabel.BackgroundTransparency = 1
+messageLabel.Font = Enum.Font.GothamBlack
+messageLabel.TextSize = 40
+messageLabel.Text = ""
+messageLabel.TextColor3 = Color3.new(1, 1, 1)
+messageLabel.TextStrokeTransparency = 0
+messageLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+messageLabel.Parent = loadoutGui -- スロットと同じ画面に置く
+
+if gameMessageEvent then
+	gameMessageEvent.OnClientEvent:Connect(function(text, color)
+		messageLabel.Text = text
+		if color then
+			messageLabel.TextColor3 = color
+		end
+
+		-- 文字が出た時に少しポップするアニメーション
+		messageLabel.TextSize = 50
+		local TweenService = game:GetService("TweenService")
+		TweenService:Create(messageLabel, TweenInfo.new(0.3, Enum.EasingStyle.Bounce), { TextSize = 40 }):Play()
+	end)
+end

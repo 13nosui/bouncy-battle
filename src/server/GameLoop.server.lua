@@ -307,12 +307,17 @@ local function startRound(mode, participants)
 
 	local targetMap = availableMaps[selectedMapIndex]
 
-	-- ==========================================
-	-- ★追加: FFAとTDM（戦闘モード）の場合は看板を無視して強制的にCyber Cityにする
-	-- ==========================================
-	-- if gameMode == "FFA" or gameMode == "TDM" then
-	-- 	targetMap = { type = "Official", name = "Cyber City", mapName = "Map_City" }
-	-- end
+	if gameMode == "BUILD" then
+		-- BUILDモードなのに戦闘用マップ（ParkやArena）が選ばれていた場合、Empty Canvasに強制する
+		if targetMap.type == "Official" and targetMap.mapName ~= "Map_BuildBase" then
+			targetMap = { type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" }
+		end
+	elseif gameMode == "FFA" or gameMode == "TDM" then
+		-- 戦闘モードなのに建築用マップ（Empty Canvasやコミュニティ）が選ばれていた場合、Battle Arenaに強制する
+		if targetMap.mapName == "Map_BuildBase" or targetMap.type == "Community" then
+			targetMap = { type = "Official", name = "Battle Arena", mapName = "Map_Arena" }
+		end
+	end
 
 	if targetMap.type == "Community" then
 		broadcast(
@@ -429,20 +434,33 @@ local function gameLoop()
 		if readyCount == 0 then
 			if SHOW_LOBBY_MESSAGE then
 				broadcast("Stand in a ZONE to join!", Color3.new(0.5, 1, 1))
+			else
+				broadcast("", Color3.new(1, 1, 1))
 			end
-			task.wait(1)
+			task.wait(0.5)
 		else
 			local countdownCancelled = false
 			for i = INTERMISSION_TIME, 1, -1 do
 				broadcast(bestMode .. " starts in " .. i .. " (" .. readyCount .. " players)", modeColor)
-				task.wait(1)
-				local currentMode, currentPlayers = getModeAndPlayers()
-				if currentMode ~= bestMode or #currentPlayers == 0 then
-					countdownCancelled = true
+
+				-- ★変更: 1秒待つ間も「0.1秒ごと」に高速監視して、離れたら即座に消す！
+				local elapsed = 0
+				while elapsed < 1 do
+					elapsed = elapsed + task.wait()
+					local currentMode, currentPlayers = getModeAndPlayers()
+					if currentMode ~= bestMode or #currentPlayers == 0 then
+						countdownCancelled = true
+						broadcast("", Color3.new(1, 1, 1)) -- ★即座に文字を消す
+						break
+					end
+					readyCount = #currentPlayers
+				end
+
+				if countdownCancelled then
 					break
 				end
-				readyCount = #currentPlayers
 			end
+
 			if not countdownCancelled and readyCount >= 1 then
 				startRound(bestMode, readyPlayers)
 			end
