@@ -29,6 +29,14 @@ if not messageEvent then
 	messageEvent.Parent = ReplicatedStorage
 end
 
+local roundStatus = ReplicatedStorage:FindFirstChild("RoundStatus")
+if not roundStatus then
+	roundStatus = Instance.new("StringValue")
+	roundStatus.Name = "RoundStatus"
+	roundStatus.Value = "LOBBY"
+	roundStatus.Parent = ReplicatedStorage
+end
+
 local cameraEvent = ReplicatedStorage:FindFirstChild("CameraEvent")
 if not cameraEvent then
 	cameraEvent = Instance.new("RemoteEvent")
@@ -417,16 +425,24 @@ local function startRound(mode, participants)
 	while isMatchActive do
 		task.wait(1)
 
-		-- ★変更: BUILDモード「以外」の時だけタイムアウトのカウントをする！
 		if gameMode ~= "BUILD" then
-			if tick() - startTime > ROUND_TIME then
+			local timeLeft = ROUND_TIME - (tick() - startTime)
+			if timeLeft <= 0 then
 				broadcast("TIME UP!", Color3.new(1, 1, 1))
+				roundStatus.Value = ""
 				isMatchActive = false
+			else
+				local mins = math.floor(timeLeft / 60)
+				local secs = math.floor(timeLeft % 60)
+				roundStatus.Value = string.format("%s - %02d:%02d", gameMode, mins, secs)
 			end
+		else
+			roundStatus.Value = "BUILD MODE"
 		end
 	end
 
 	task.wait(5)
+	roundStatus.Value = "LOBBY"
 	if CurrentMap then
 		CurrentMap:Destroy()
 	end

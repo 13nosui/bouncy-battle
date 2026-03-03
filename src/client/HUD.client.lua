@@ -2,8 +2,13 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+pcall(function()
+	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Health, false)
+end)
 
 -- === RIVALS風 ロードアウトUIの作成 ===
 local loadoutGui = Instance.new("ScreenGui")
@@ -456,3 +461,190 @@ if gameMessageEvent then
 		TweenService:Create(messageLabel, TweenInfo.new(0.3, Enum.EasingStyle.Bounce), { TextSize = 40 }):Play()
 	end)
 end
+
+-- ==========================================
+-- ★追加: 失われたHUD（コイン、ラウンド情報、体力、弾薬）の完全復活
+-- ==========================================
+local RunService = game:GetService("RunService")
+
+-- 1. コイン表示（右上）
+local coinFrame = Instance.new("Frame")
+coinFrame.Size = UDim2.new(0, 150, 0, 40)
+coinFrame.Position = UDim2.new(1, -170, 0, 20)
+coinFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+coinFrame.BackgroundTransparency = 0.5
+coinFrame.Parent = loadoutGui
+
+local coinCorner = Instance.new("UICorner")
+coinCorner.CornerRadius = UDim.new(0, 8)
+coinCorner.Parent = coinFrame
+
+local coinStroke = Instance.new("UIStroke")
+coinStroke.Color = Color3.fromRGB(255, 200, 50)
+coinStroke.Thickness = 2
+coinStroke.Parent = coinFrame
+
+local coinLabel = Instance.new("TextLabel")
+coinLabel.Size = UDim2.new(1, 0, 1, 0)
+coinLabel.BackgroundTransparency = 1
+coinLabel.Text = "💰 0"
+coinLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+coinLabel.Font = Enum.Font.GothamBold
+coinLabel.TextSize = 20
+coinLabel.Parent = coinFrame
+
+task.spawn(function()
+	local leaderstats = player:WaitForChild("leaderstats", 10)
+	if leaderstats then
+		local coins = leaderstats:WaitForChild("Coins", 5)
+		if coins then
+			coinLabel.Text = "💰 " .. tostring(coins.Value)
+			coins.Changed:Connect(function(val)
+				coinLabel.Text = "💰 " .. tostring(val)
+				local TweenService = game:GetService("TweenService")
+				coinLabel.TextSize = 30
+				TweenService:Create(coinLabel, TweenInfo.new(0.3, Enum.EasingStyle.Bounce), { TextSize = 20 }):Play()
+			end)
+		end
+	end
+end)
+
+-- 2. ラウンド情報とスコア（上部中央）
+local roundLabel = Instance.new("TextLabel")
+roundLabel.Size = UDim2.new(0, 300, 0, 40)
+roundLabel.Position = UDim2.new(0.5, -150, 0, 20)
+roundLabel.BackgroundTransparency = 1
+roundLabel.Text = ""
+roundLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+roundLabel.Font = Enum.Font.GothamBlack
+roundLabel.TextSize = 24
+roundLabel.TextStrokeTransparency = 0
+roundLabel.Parent = loadoutGui
+
+-- ★追加: 5回勝利（キル）の進捗スコア表示
+local scoreLabel = Instance.new("TextLabel")
+scoreLabel.Size = UDim2.new(0, 300, 0, 30)
+scoreLabel.Position = UDim2.new(0.5, -150, 0, 60) -- タイマーのすぐ下に配置
+scoreLabel.BackgroundTransparency = 1
+scoreLabel.Text = ""
+scoreLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+scoreLabel.Font = Enum.Font.GothamBold
+scoreLabel.TextSize = 20
+scoreLabel.TextStrokeTransparency = 0
+scoreLabel.Parent = loadoutGui
+
+local roundStatus = ReplicatedStorage:WaitForChild("RoundStatus", 5)
+if roundStatus then
+	local function updateVisibility(val)
+		if val == "LOBBY" or val == "" then
+			roundLabel.Text = ""
+			scoreLabel.Visible = false -- ロビーではスコアを隠す
+		else
+			roundLabel.Text = val
+			scoreLabel.Visible = true -- 試合中はスコアを表示
+		end
+	end
+
+	updateVisibility(roundStatus.Value)
+	roundStatus.Changed:Connect(updateVisibility)
+end
+
+-- キル数（スコア）を監視して表示を更新する
+task.spawn(function()
+	local leaderstats = player:WaitForChild("leaderstats", 10)
+	if leaderstats then
+		local kills = leaderstats:WaitForChild("Kills", 5)
+		if kills then
+			scoreLabel.Text = "SCORE: " .. kills.Value .. " / 5"
+			kills.Changed:Connect(function(val)
+				scoreLabel.Text = "SCORE: " .. val .. " / 5"
+			end)
+		end
+	end
+end)
+
+-- 3. 体力ゲージ（左下）
+local healthFrame = Instance.new("Frame")
+healthFrame.Size = UDim2.new(0, 300, 0, 25)
+healthFrame.Position = UDim2.new(0, 40, 1, -60)
+healthFrame.BackgroundColor3 = Color3.fromRGB(50, 20, 20)
+healthFrame.BackgroundTransparency = 0.2
+healthFrame.Parent = loadoutGui
+
+local healthCorner = Instance.new("UICorner")
+healthCorner.CornerRadius = UDim.new(0, 6)
+healthCorner.Parent = healthFrame
+
+local healthBar = Instance.new("Frame")
+healthBar.Size = UDim2.new(1, 0, 1, 0)
+healthBar.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+healthBar.Parent = healthFrame
+
+local healthBarCorner = Instance.new("UICorner")
+healthBarCorner.CornerRadius = UDim.new(0, 6)
+healthBarCorner.Parent = healthBar
+
+local healthLabel = Instance.new("TextLabel")
+healthLabel.Size = UDim2.new(1, 0, 1, 0)
+healthLabel.BackgroundTransparency = 1
+healthLabel.Text = "HP: 100 / 100"
+healthLabel.TextColor3 = Color3.new(1, 1, 1)
+healthLabel.Font = Enum.Font.GothamBold
+healthLabel.TextSize = 16
+healthLabel.TextStrokeTransparency = 0
+healthLabel.Parent = healthFrame
+
+-- 4. 弾薬表示（右下）
+local ammoLabel = Instance.new("TextLabel")
+ammoLabel.Size = UDim2.new(0, 150, 0, 50)
+ammoLabel.Position = UDim2.new(1, -190, 1, -80)
+ammoLabel.BackgroundTransparency = 1
+ammoLabel.Text = ""
+ammoLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+ammoLabel.Font = Enum.Font.GothamBlack
+ammoLabel.TextSize = 36
+ammoLabel.TextXAlignment = Enum.TextXAlignment.Right
+ammoLabel.TextStrokeTransparency = 0
+ammoLabel.Parent = loadoutGui
+
+-- 毎フレームの更新処理（体力と弾薬）
+RunService.RenderStepped:Connect(function()
+	local char = player.Character
+	local humanoid = char and char:FindFirstChild("Humanoid")
+
+	-- 体力の更新
+	if humanoid then
+		local hp = humanoid.Health
+		local maxHp = humanoid.MaxHealth
+		healthLabel.Text = "HP: " .. math.floor(hp) .. " / " .. math.floor(maxHp)
+		healthBar.Size = UDim2.new(math.clamp(hp / maxHp, 0, 1), 0, 1, 0)
+
+		if hp / maxHp <= 0.3 then
+			healthBar.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+		else
+			healthBar.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
+		end
+		healthFrame.Visible = true
+	else
+		healthFrame.Visible = false
+	end
+
+	-- 弾薬の更新
+	local equippedTool = char and char:FindFirstChildOfClass("Tool")
+	if equippedTool and equippedTool:GetAttribute("CurrentAmmo") then
+		local current = equippedTool:GetAttribute("CurrentAmmo")
+		local maxAmmo = equippedTool:GetAttribute("MaxAmmo")
+		if current and maxAmmo then
+			ammoLabel.Text = current .. " / " .. maxAmmo
+			if current <= maxAmmo * 0.2 then
+				ammoLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+			else
+				ammoLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
+			end
+		else
+			ammoLabel.Text = ""
+		end
+	else
+		ammoLabel.Text = ""
+	end
+end)
