@@ -113,7 +113,18 @@ Players.PlayerAdded:Connect(function(player)
 		character:SetAttribute("IsReloading", false)
 		character:SetAttribute("EmptyClicked", false)
 
-		-- ★修正: 復活してもスキルを没収しないように、SlotQとSlotZのリセット処理を削除しました！
+		-- ★追加: 武器を持ち替えた時（手に持った時）に、その武器の最大弾数に合わせる
+		character.ChildAdded:Connect(function(child)
+			if child:IsA("Tool") and child.Name:match("Bouncy") then
+				local stats = WEAPON_DATA[child.Name]
+				if stats then
+					character:SetAttribute("Ammo", stats.MaxAmmo)
+					character:SetAttribute("MaxAmmo", stats.MaxAmmo)
+					character:SetAttribute("IsReloading", false)
+					character:SetAttribute("EmptyClicked", false)
+				end
+			end
+		end)
 	end)
 end)
 

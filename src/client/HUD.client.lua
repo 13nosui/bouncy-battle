@@ -631,13 +631,15 @@ RunService.RenderStepped:Connect(function()
 
 	-- 弾薬の更新
 	local equippedTool = char and char:FindFirstChildOfClass("Tool")
-	if equippedTool and equippedTool:GetAttribute("CurrentAmmo") then
-		local current = equippedTool:GetAttribute("CurrentAmmo")
-		local maxAmmo = equippedTool:GetAttribute("MaxAmmo")
+	-- ★修正: 武器（Bouncy〜）を持っている時だけ、キャラクター(char)の「Ammo」を見るように変更！
+	if equippedTool and equippedTool.Name:match("Bouncy") then
+		local current = char:GetAttribute("Ammo")
+		local maxAmmo = char:GetAttribute("MaxAmmo")
+
 		if current and maxAmmo then
 			ammoLabel.Text = current .. " / " .. maxAmmo
 			if current <= maxAmmo * 0.2 then
-				ammoLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+				ammoLabel.TextColor3 = Color3.fromRGB(255, 50, 50) -- 残り20%で赤くなる
 			else
 				ammoLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
 			end
