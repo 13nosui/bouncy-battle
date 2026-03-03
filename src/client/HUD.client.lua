@@ -234,23 +234,20 @@ end)
 -- ==========================================
 local openLoadoutEvent = ReplicatedStorage:WaitForChild("OpenLoadout", 10)
 
--- 全画面UIの土台
 local loadoutScreen = Instance.new("ScreenGui")
 loadoutScreen.Name = "LoadoutScreenGui"
 loadoutScreen.ResetOnSpawn = false
 loadoutScreen.IgnoreGuiInset = true
-loadoutScreen.DisplayOrder = 100 -- ★他のUIより絶対に上に表示させる
-loadoutScreen.Enabled = false -- 最初は隠す
+loadoutScreen.DisplayOrder = 100
+loadoutScreen.Enabled = false
 loadoutScreen.Parent = playerGui
 
--- 黒い半透明の背景
 local loadoutBg = Instance.new("Frame")
 loadoutBg.Size = UDim2.new(1, 0, 1, 0)
 loadoutBg.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 loadoutBg.BackgroundTransparency = 0.1
 loadoutBg.Parent = loadoutScreen
 
--- タイトル文字
 local loadoutTitle = Instance.new("TextLabel")
 loadoutTitle.Text = "TERMINAL - SELECT YOUR LOADOUT"
 loadoutTitle.Size = UDim2.new(1, 0, 0, 50)
@@ -261,7 +258,6 @@ loadoutTitle.Font = Enum.Font.GothamBlack
 loadoutTitle.TextSize = 36
 loadoutTitle.Parent = loadoutBg
 
--- 閉じるボタン
 local closeBtn = Instance.new("TextButton")
 closeBtn.Text = "CLOSE"
 closeBtn.Size = UDim2.new(0, 200, 0, 50)
@@ -276,19 +272,27 @@ local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 8)
 closeCorner.Parent = closeBtn
 
--- ==========================================
--- ★追加: 武器とスキルの選択リストを作成
--- ==========================================
-local equipItemEvent = ReplicatedStorage:WaitForChild("EquipItem", 5)
-if not equipItemEvent then
-	equipItemEvent = Instance.new("RemoteEvent")
-	equipItemEvent.Name = "EquipItem"
-	equipItemEvent.Parent = ReplicatedStorage
-end
+-- ★追加: HUD側にも表示用の価格表を持たせる
+local ITEM_PRICES = {
+	["BouncyGun"] = 0,
+	["BouncyShotgun"] = 0,
+	["BouncySMG"] = 0,
+	["BouncyGrenade"] = 500,
+	["Energy Shield"] = 0,
+	["SpeedBoost"] = 0,
+	["HighJump"] = 200,
+	["Invisibility"] = 300,
+	["Teleport"] = 400,
+	["TimeSlow"] = 500,
+	["Giant"] = 600,
+	["Mini"] = 600,
+	["XRay"] = 700,
+}
 
--- リストを作るための便利関数
+local equipItemEvent = ReplicatedStorage:WaitForChild("EquipItem", 5)
+
+-- リストを作る関数（値段と鍵マーク対応版）
 local function createItemList(parent, titleText, posX, items, itemType)
-	-- タイトル
 	local title = Instance.new("TextLabel")
 	title.Text = titleText
 	title.Size = UDim2.new(0.4, 0, 0, 30)
@@ -299,7 +303,6 @@ local function createItemList(parent, titleText, posX, items, itemType)
 	title.TextSize = 24
 	title.Parent = parent
 
-	-- リストの枠（スクロール可能にする）
 	local scroll = Instance.new("ScrollingFrame")
 	scroll.Size = UDim2.new(0.4, 0, 0.6, 0)
 	scroll.Position = UDim2.new(posX, 0, 0.25, 0)
@@ -307,23 +310,18 @@ local function createItemList(parent, titleText, posX, items, itemType)
 	scroll.ScrollBarThickness = 4
 	scroll.Parent = parent
 
-	-- グリッドレイアウト（綺麗に並べる）
 	local grid = Instance.new("UIGridLayout")
 	grid.CellSize = UDim2.new(0.48, 0, 0, 60)
 	grid.CellPadding = UDim2.new(0.04, 0, 0, 15)
 	grid.SortOrder = Enum.SortOrder.LayoutOrder
 	grid.Parent = scroll
 
-	-- 各アイテムのボタンを生成
 	for i, itemName in ipairs(items) do
 		local btn = Instance.new("TextButton")
 		btn.Name = itemName
-		btn.Text = itemName
 		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-		btn.TextColor3 = Color3.fromRGB(200, 200, 200)
-		btn.Font = Enum.Font.GothamMedium
-		btn.TextSize = 16
 		btn.LayoutOrder = i
+		btn.Text = ""
 		btn.Parent = scroll
 
 		local corner = Instance.new("UICorner")
@@ -335,7 +333,56 @@ local function createItemList(parent, titleText, posX, items, itemType)
 		stroke.Thickness = 1
 		stroke.Parent = btn
 
-		-- マウスを乗せた時のエフェクト
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.Size = UDim2.new(1, 0, 0.6, 0)
+		nameLabel.Position = UDim2.new(0, 0, 0.1, 0)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Font = Enum.Font.GothamMedium
+		nameLabel.TextSize = 16
+		nameLabel.Text = itemName
+		nameLabel.Parent = btn
+
+		local statusLabel = Instance.new("TextLabel")
+		statusLabel.Size = UDim2.new(1, 0, 0.4, 0)
+		statusLabel.Position = UDim2.new(0, 0, 0.6, 0)
+		statusLabel.BackgroundTransparency = 1
+		statusLabel.Font = Enum.Font.GothamBold
+		statusLabel.TextSize = 12
+		statusLabel.Parent = btn
+
+		local price = ITEM_PRICES[itemName] or 0
+
+		-- 状態を更新する関数
+		local function updateButtonState()
+			local unlockedStr = ""
+			if itemType == "Weapon" then
+				unlockedStr = player:GetAttribute("UnlockedWeapons") or ""
+			else
+				unlockedStr = player:GetAttribute("UnlockedSkills") or ""
+			end
+
+			local isUnlocked = table.find(string.split(unlockedStr, ","), itemName) ~= nil
+
+			if isUnlocked then
+				statusLabel.Text = "UNLOCKED"
+				statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+				nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+			else
+				statusLabel.Text = "🔒 " .. price .. " Coins"
+				statusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+				nameLabel.TextColor3 = Color3.fromRGB(100, 100, 100) -- 未解放は暗くする
+			end
+		end
+
+		updateButtonState()
+
+		-- アンロック状況が変わったら自動で見た目を更新する
+		if itemType == "Weapon" then
+			player:GetAttributeChangedSignal("UnlockedWeapons"):Connect(updateButtonState)
+		else
+			player:GetAttributeChangedSignal("UnlockedSkills"):Connect(updateButtonState)
+		end
+
 		btn.MouseEnter:Connect(function()
 			btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
 			stroke.Color = Color3.fromRGB(0, 255, 255)
@@ -345,16 +392,11 @@ local function createItemList(parent, titleText, posX, items, itemType)
 			stroke.Color = Color3.fromRGB(100, 100, 100)
 		end)
 
-		-- ★クリックされたらサーバーに「装備して！」とリクエストを送る
 		btn.MouseButton1Click:Connect(function()
-			-- クリックエフェクト
 			btn.BackgroundColor3 = Color3.fromRGB(80, 240, 255)
-			btn.TextColor3 = Color3.new(0, 0, 0)
 			task.delay(0.1, function()
 				btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-				btn.TextColor3 = Color3.fromRGB(200, 200, 200)
 			end)
-
 			if equipItemEvent then
 				equipItemEvent:FireServer(itemType, itemName)
 			end
@@ -362,22 +404,16 @@ local function createItemList(parent, titleText, posX, items, itemType)
 	end
 end
 
--- 左側に武器リストを配置 (X座標: 0.08)
 local weapons = { "BouncyGun", "BouncyShotgun", "BouncySMG", "BouncyGrenade" }
 createItemList(loadoutBg, "WEAPONS (Slot 1 & 2)", 0.08, weapons, "Weapon")
 
--- 右側にスキルリストを配置 (X座標: 0.52)
 local skills =
 	{ "Energy Shield", "HighJump", "SpeedBoost", "Invisibility", "Teleport", "TimeSlow", "Giant", "Mini", "XRay" }
 createItemList(loadoutBg, "ABILITIES (Slot Q & Z)", 0.52, skills, "Skill")
 
--- サーバーから「開け」と命令が来たら表示
-local openLoadoutEvent = ReplicatedStorage:WaitForChild("OpenLoadout", 5)
 if openLoadoutEvent then
 	openLoadoutEvent.OnClientEvent:Connect(function()
 		loadoutScreen.Enabled = true
-
-		-- ★追加: 端末を開いた瞬間、強制的に武器をしまってマウスのロックを解除する
 		local char = player.Character
 		local hum = char and char:FindFirstChild("Humanoid")
 		if hum then
@@ -386,20 +422,19 @@ if openLoadoutEvent then
 	end)
 end
 
--- 閉じるボタンを押した時の処理
 closeBtn.MouseButton1Click:Connect(function()
 	loadoutScreen.Enabled = false
 end)
 
 -- ==========================================
--- ★追加: ゲームの進行メッセージ（カウントダウン等）の復活
+-- ゲームの進行メッセージ（カウントダウン等）
 -- ==========================================
 local gameMessageEvent = ReplicatedStorage:WaitForChild("GameMessage", 5)
 
 local messageLabel = Instance.new("TextLabel")
 messageLabel.Name = "GameMessageLabel"
 messageLabel.Size = UDim2.new(1, 0, 0, 80)
-messageLabel.Position = UDim2.new(0, 0, 0.15, 0) -- 画面の上の方に配置
+messageLabel.Position = UDim2.new(0, 0, 0.15, 0)
 messageLabel.BackgroundTransparency = 1
 messageLabel.Font = Enum.Font.GothamBlack
 messageLabel.TextSize = 40
@@ -407,7 +442,7 @@ messageLabel.Text = ""
 messageLabel.TextColor3 = Color3.new(1, 1, 1)
 messageLabel.TextStrokeTransparency = 0
 messageLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-messageLabel.Parent = loadoutGui -- スロットと同じ画面に置く
+messageLabel.Parent = loadoutGui
 
 if gameMessageEvent then
 	gameMessageEvent.OnClientEvent:Connect(function(text, color)
@@ -416,7 +451,6 @@ if gameMessageEvent then
 			messageLabel.TextColor3 = color
 		end
 
-		-- 文字が出た時に少しポップするアニメーション
 		messageLabel.TextSize = 50
 		local TweenService = game:GetService("TweenService")
 		TweenService:Create(messageLabel, TweenInfo.new(0.3, Enum.EasingStyle.Bounce), { TextSize = 40 }):Play()

@@ -27,11 +27,20 @@ local function spawnBot()
 			local killerPlayer = creatorTag.Value
 
 			-- プレイヤーのスコアを加算
-			-- (GameLoop側でChangedイベントを監視しているので、値を増やすだけで勝敗判定が動く)
 			local stats = killerPlayer:FindFirstChild("leaderstats")
 			if stats then
 				stats.Kills.Value = stats.Kills.Value + 1
+
+				-- ★追加: Botを倒した時も10コインあげる！
+				local coins = stats:FindFirstChild("Coins")
+				if coins then
+					coins.Value = coins.Value + 10
+				end
 			end
+
+			-- ★追加: 累計キル数（セーブ用）も増やす
+			local totalKills = killerPlayer:GetAttribute("TotalKills") or 0
+			killerPlayer:SetAttribute("TotalKills", totalKills + 1)
 		end
 
 		-- 死体を片付ける（少し待ってから消す）

@@ -3,7 +3,23 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerStorage = game:GetService("ServerStorage")
 local Debris = game:GetService("Debris")
 
--- クライアントから「これを装備したい」とリクエストを受け取るイベント
+-- ★追加: 各アイテムの価格設定（0は最初から使えるもの）
+local ITEM_PRICES = {
+	["BouncyGun"] = 0,
+	["BouncyShotgun"] = 0,
+	["BouncySMG"] = 0,
+	["BouncyGrenade"] = 500,
+	["Energy Shield"] = 0,
+	["SpeedBoost"] = 0,
+	["HighJump"] = 200,
+	["Invisibility"] = 300,
+	["Teleport"] = 400,
+	["TimeSlow"] = 500,
+	["Giant"] = 600,
+	["Mini"] = 600,
+	["XRay"] = 700,
+}
+
 local equipItemEvent = ReplicatedStorage:FindFirstChild("EquipItem")
 if not equipItemEvent then
 	equipItemEvent = Instance.new("RemoteEvent")
@@ -13,8 +29,7 @@ end
 
 local WeaponsFolder = ServerStorage:WaitForChild("Weapons")
 
--- 音を鳴らす関数
-local function playEquipSound(character, soundId, pitch)
+local function playSound(character, soundId, pitch)
 	local hrp = character:FindFirstChild("HumanoidRootPart")
 	if hrp then
 		local sound = Instance.new("Sound")
@@ -31,23 +46,40 @@ equipItemEvent.OnServerEvent:Connect(function(player, itemType, itemName)
 	local character = player.Character
 	local humanoid = character and character:FindFirstChild("Humanoid")
 	local backpack = player:FindFirstChild("Backpack")
+	local leaderstats = player:FindFirstChild("leaderstats")
 
-	if not character or not humanoid or not backpack then
+	if not character or not humanoid or not backpack or not leaderstats then
 		return
 	end
 
+	local coins = leaderstats:FindFirstChild("Coins")
+	local price = ITEM_PRICES[itemName] or 0
+
 	if itemType == "Weapon" then
+		-- ★追加: アンロック（購入）判定
+		local unlockedStr = player:GetAttribute("UnlockedWeapons") or ""
+		local isUnlocked = table.find(string.split(unlockedStr, ","), itemName) ~= nil
+
+		if not isUnlocked then
+			if coins and coins.Value >= price then
+				coins.Value = coins.Value - price
+				local newList = unlockedStr == "" and itemName or unlockedStr .. "," .. itemName
+				player:SetAttribute("UnlockedWeapons", newList)
+				playSound(character, "rbxassetid://2868285516", 2.0) -- 買った時のチャリン音
+			else
+				playSound(character, "rbxassetid://132092474833421", 1.0) -- お金が足りない時のブー音
+				return
+			end
+		end
+
 		local weaponTemplate = WeaponsFolder:FindFirstChild(itemName)
 		if not weaponTemplate then
 			return
 		end
-
-		-- すでに持っている場合は無視
 		if backpack:FindFirstChild(itemName) or character:FindFirstChild(itemName) then
 			return
 		end
 
-		-- 今持っている武器を調べて、スロット1か2の空いている方（または手に持っている方）を上書き
 		local currentWeapons = {}
 		for _, item in ipairs(character:GetChildren()) do
 			if item:IsA("Tool") and item.Name:match("Bouncy") then
@@ -79,26 +111,38 @@ equipItemEvent.OnServerEvent:Connect(function(player, itemType, itemName)
 		local clonedWeapon = weaponTemplate:Clone()
 		clonedWeapon:SetAttribute("Slot", assignSlot)
 		clonedWeapon.Parent = backpack
-
-		playEquipSound(character, "rbxassetid://2620461915", 1.0) -- カチャッという武器の音
+		playSound(character, "rbxassetid://2868285516", 1.0) -- カチャッ
 	elseif itemType == "Skill" then
+		-- ★追加: アンロック（購入）判定
+		local unlockedStr = player:GetAttribute("UnlockedSkills") or ""
+		local isUnlocked = table.find(string.split(unlockedStr, ","), itemName) ~= nil
+
+		if not isUnlocked then
+			if coins and coins.Value >= price then
+				coins.Value = coins.Value - price
+				local newList = unlockedStr == "" and itemName or unlockedStr .. "," .. itemName
+				player:SetAttribute("UnlockedSkills", newList)
+				playSound(character, "rbxassetid://2868285516", 2.0) -- 買った時のチャリン音
+			else
+				playSound(character, "rbxassetid://132092474833421", 1.0) -- お金が足りない時のブー音
+				return
+			end
+		end
+
 		local sq = player:GetAttribute("SlotQ") or ""
 		local sz = player:GetAttribute("SlotZ") or ""
 
-		-- すでに同じものを持っている場合は無視
 		if sq == itemName or sz == itemName then
 			return
 		end
-
 		if sq == "" then
 			player:SetAttribute("SlotQ", itemName)
 		elseif sz == "" then
 			player:SetAttribute("SlotZ", itemName)
 		else
-			-- 両方埋まっている場合はQ枠を上書き
 			player:SetAttribute("SlotQ", itemName)
 		end
 
-		playEquipSound(character, "rbxassetid://86070307558627", 1.2) -- ピシュン！というスキルの音
+		playSound(character, "rbxassetid://86070307558627", 1.2) -- ピシュン
 	end
 end)

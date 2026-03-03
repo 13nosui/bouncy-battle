@@ -498,30 +498,46 @@ local function onHumanoidDied(humanoid, player)
 			local stats = killer:FindFirstChild("leaderstats")
 			if stats then
 				stats.Kills.Value = stats.Kills.Value + 1
+
+				-- ★追加: キルした時に10コインあげる！
+				local coins = stats:FindFirstChild("Coins")
+				if coins then
+					coins.Value = coins.Value + 10
+				end
 			end
+
+			-- ★追加: 累計キル数（セーブ用）も増やす
+			local totalKills = killer:GetAttribute("TotalKills") or 0
+			killer:SetAttribute("TotalKills", totalKills + 1)
 		end
 	end
 end
 
 Players.PlayerAdded:Connect(function(player)
-	player:SetAttribute("InMatch", false)
-	local leaderstats = Instance.new("Folder")
-	leaderstats.Name = "leaderstats"
-	leaderstats.Parent = player
-	local kills = Instance.new("IntValue")
-	kills.Name = "Kills"
-	kills.Value = 0
-	kills.Parent = leaderstats
+	-- 少し待ってリーダータッツが作られるのを待つ
+	task.wait(0.5)
+	local leaderstats = player:FindFirstChild("leaderstats")
+	if leaderstats then
+		local kills = leaderstats:FindFirstChild("Kills")
+		if kills then
+			kills.Changed:Connect(function(newValue)
+				if isMatchActive and newValue >= WIN_SCORE then
+					broadcast(player.Name .. " WINS!", Color3.new(1, 0.5, 0))
+					if player.Character then
+						cameraEvent:FireAllClients("Win", player.Character)
+					end
 
-	kills.Changed:Connect(function(newValue)
-		if isMatchActive and newValue >= WIN_SCORE then
-			broadcast(player.Name .. " WINS!", Color3.new(1, 0.5, 0))
-			if player.Character then
-				cameraEvent:FireAllClients("Win", player.Character)
-			end
-			isMatchActive = false
+					-- ★追加: 優勝した時にボーナスで100コインあげる！
+					local coins = leaderstats:FindFirstChild("Coins")
+					if coins then
+						coins.Value = coins.Value + 100
+					end
+
+					isMatchActive = false
+				end
+			end)
 		end
-	end)
+	end
 
 	player.CharacterAdded:Connect(function(character)
 		local humanoid = character:WaitForChild("Humanoid")
@@ -535,12 +551,12 @@ Players.PlayerAdded:Connect(function(player)
 				local backpack = player:FindFirstChild("Backpack")
 				if backpack and not backpack:FindFirstChild("BuildTool") then
 					local tool = BuildToolTemplate:Clone()
-					tool:SetAttribute("Slot", 0) -- スロット1に登録
+					tool:SetAttribute("Slot", 0) -- スロット「0」に登録
 					tool.Parent = backpack
 
 					local hum = character:FindFirstChild("Humanoid")
 					if hum then
-						hum:EquipTool(tool) -- 強制的に手に持たせる
+						hum:EquipTool(tool)
 					end
 				end
 			end
