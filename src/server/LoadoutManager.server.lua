@@ -65,9 +65,9 @@ equipItemEvent.OnServerEvent:Connect(function(player, itemType, itemName)
 				coins.Value = coins.Value - price
 				local newList = unlockedStr == "" and itemName or unlockedStr .. "," .. itemName
 				player:SetAttribute("UnlockedWeapons", newList)
-				playSound(character, "rbxassetid://2868285516", 2.0) -- 買った時のチャリン音
+				playSound(character, "rbxassetid://106653932643486", 2.0) -- 買った時のチャリン音
 			else
-				playSound(character, "rbxassetid://132092474833421", 1.0) -- お金が足りない時のブー音
+				playSound(character, "rbxassetid://127799722113121", 1.0) -- お金が足りない時のブー音
 				return
 			end
 		end
@@ -112,7 +112,7 @@ equipItemEvent.OnServerEvent:Connect(function(player, itemType, itemName)
 		clonedWeapon:SetAttribute("Slot", assignSlot)
 		clonedWeapon.Parent = backpack
 		player:SetAttribute("Slot" .. tostring(assignSlot), itemName)
-		playSound(character, "rbxassetid://2868285516", 1.0) -- カチャッ
+		playSound(character, "rbxassetid://506273075", 1.0) -- カチャッ
 	elseif itemType == "Skill" then
 		-- ★追加: アンロック（購入）判定
 		local unlockedStr = player:GetAttribute("UnlockedSkills") or ""
@@ -123,9 +123,9 @@ equipItemEvent.OnServerEvent:Connect(function(player, itemType, itemName)
 				coins.Value = coins.Value - price
 				local newList = unlockedStr == "" and itemName or unlockedStr .. "," .. itemName
 				player:SetAttribute("UnlockedSkills", newList)
-				playSound(character, "rbxassetid://2868285516", 2.0) -- 買った時のチャリン音
+				playSound(character, "rbxassetid://106653932643486", 2.0) -- 買った時のチャリン音
 			else
-				playSound(character, "rbxassetid://132092474833421", 1.0) -- お金が足りない時のブー音
+				playSound(character, "rbxassetid://127799722113121", 1.0) -- お金が足りない時のブー音
 				return
 			end
 		end

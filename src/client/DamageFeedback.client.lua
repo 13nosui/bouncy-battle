@@ -6,7 +6,7 @@ local player = Players.LocalPlayer
 
 -- 設定
 -- 一旦、確実に鳴るRoblox標準のヒット音を入れています
-local DAMAGE_SOUND_ID = "rbxassetid://12222084"
+local DAMAGE_SOUND_ID = "rbxassetid://133994443620530"
 local FLASH_COLOR = Color3.fromRGB(255, 0, 0) -- 赤色
 
 -- GUI作成

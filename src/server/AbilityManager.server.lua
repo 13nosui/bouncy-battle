@@ -53,7 +53,7 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 		abilityEvent:FireClient(player, "HighJump", abilityConfig)
 
 		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://1222208"
+		sound.SoundId = "rbxassetid://6075441854"
 		sound.Volume = 1.0
 		sound.Parent = rootPart
 		sound:Play()
@@ -81,7 +81,7 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 		char:SetAttribute("SpeedBoostMultiplier", abilityConfig.SpeedMultiplier)
 
 		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://12222084"
+		sound.SoundId = "rbxassetid://112389060783409"
 		sound.Volume = 1.0
 		sound.Parent = rootPart
 		sound:Play()
@@ -116,7 +116,7 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 	-- ★透明化（Invisibility）の発動
 	elseif abilityName == "Invisibility" then
 		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://2868285516"
+		sound.SoundId = "rbxassetid://104835897489348"
 		sound.Volume = 1.0
 		sound.Parent = rootPart
 		sound:Play()
@@ -169,7 +169,7 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 		Debris:AddItem(eff1, 0.5)
 
 		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://2868285516"
+		sound.SoundId = "rbxassetid://138890894929151"
 		sound.Volume = 1.0
 		sound.Pitch = 1.5
 		sound.Parent = rootPart
@@ -182,7 +182,7 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 	-- ★周囲の弾を遅くする（TimeSlow）の発動
 	elseif abilityName == "TimeSlow" then
 		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://12222030"
+		sound.SoundId = "rbxassetid://116059066346625"
 		sound.Volume = 1.0
 		sound.Pitch = 0.5
 		sound.Parent = rootPart
@@ -259,7 +259,7 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 		Debris:AddItem(hitZone, abilityConfig.Duration)
 	elseif abilityName == "Giant" or abilityName == "Mini" then
 		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://2868285516"
+		sound.SoundId = "rbxassetid://140323850218372"
 		sound.Volume = 1.0
 		sound.Pitch = (abilityName == "Giant") and 0.5 or 2.0
 		sound.Parent = rootPart
