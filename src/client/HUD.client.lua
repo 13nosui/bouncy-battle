@@ -1,6 +1,7 @@
 -- src/client/HUD.client.lua
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -206,4 +207,166 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 			humanoid:EquipTool(tool)
 		end
 	end
+end)
+
+-- ==========================================
+-- ★追加: ロードアウト端末の全画面UIシステム
+-- ==========================================
+local openLoadoutEvent = ReplicatedStorage:WaitForChild("OpenLoadout", 10)
+
+-- 全画面UIの土台
+local loadoutScreen = Instance.new("ScreenGui")
+loadoutScreen.Name = "LoadoutScreenGui"
+loadoutScreen.ResetOnSpawn = false
+loadoutScreen.IgnoreGuiInset = true
+loadoutScreen.DisplayOrder = 100 -- ★他のUIより絶対に上に表示させる
+loadoutScreen.Enabled = false -- 最初は隠す
+loadoutScreen.Parent = playerGui
+
+-- 黒い半透明の背景
+local loadoutBg = Instance.new("Frame")
+loadoutBg.Size = UDim2.new(1, 0, 1, 0)
+loadoutBg.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+loadoutBg.BackgroundTransparency = 0.1
+loadoutBg.Parent = loadoutScreen
+
+-- タイトル文字
+local loadoutTitle = Instance.new("TextLabel")
+loadoutTitle.Text = "TERMINAL - SELECT YOUR LOADOUT"
+loadoutTitle.Size = UDim2.new(1, 0, 0, 50)
+loadoutTitle.Position = UDim2.new(0, 0, 0, 30)
+loadoutTitle.BackgroundTransparency = 1
+loadoutTitle.TextColor3 = Color3.fromRGB(0, 255, 255)
+loadoutTitle.Font = Enum.Font.GothamBlack
+loadoutTitle.TextSize = 36
+loadoutTitle.Parent = loadoutBg
+
+-- 閉じるボタン
+local closeBtn = Instance.new("TextButton")
+closeBtn.Text = "CLOSE"
+closeBtn.Size = UDim2.new(0, 200, 0, 50)
+closeBtn.Position = UDim2.new(0.5, -100, 1, -180)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 20
+closeBtn.Parent = loadoutBg
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 8)
+closeCorner.Parent = closeBtn
+
+-- ==========================================
+-- ★追加: 武器とスキルの選択リストを作成
+-- ==========================================
+local equipItemEvent = ReplicatedStorage:WaitForChild("EquipItem", 5)
+if not equipItemEvent then
+	equipItemEvent = Instance.new("RemoteEvent")
+	equipItemEvent.Name = "EquipItem"
+	equipItemEvent.Parent = ReplicatedStorage
+end
+
+-- リストを作るための便利関数
+local function createItemList(parent, titleText, posX, items, itemType)
+	-- タイトル
+	local title = Instance.new("TextLabel")
+	title.Text = titleText
+	title.Size = UDim2.new(0.4, 0, 0, 30)
+	title.Position = UDim2.new(posX, 0, 0.2, 0)
+	title.BackgroundTransparency = 1
+	title.TextColor3 = Color3.new(1, 1, 1)
+	title.Font = Enum.Font.GothamBold
+	title.TextSize = 24
+	title.Parent = parent
+
+	-- リストの枠（スクロール可能にする）
+	local scroll = Instance.new("ScrollingFrame")
+	scroll.Size = UDim2.new(0.4, 0, 0.6, 0)
+	scroll.Position = UDim2.new(posX, 0, 0.25, 0)
+	scroll.BackgroundTransparency = 1
+	scroll.ScrollBarThickness = 4
+	scroll.Parent = parent
+
+	-- グリッドレイアウト（綺麗に並べる）
+	local grid = Instance.new("UIGridLayout")
+	grid.CellSize = UDim2.new(0.48, 0, 0, 60)
+	grid.CellPadding = UDim2.new(0.04, 0, 0, 15)
+	grid.SortOrder = Enum.SortOrder.LayoutOrder
+	grid.Parent = scroll
+
+	-- 各アイテムのボタンを生成
+	for i, itemName in ipairs(items) do
+		local btn = Instance.new("TextButton")
+		btn.Name = itemName
+		btn.Text = itemName
+		btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+		btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+		btn.Font = Enum.Font.GothamMedium
+		btn.TextSize = 16
+		btn.LayoutOrder = i
+		btn.Parent = scroll
+
+		local corner = Instance.new("UICorner")
+		corner.CornerRadius = UDim.new(0, 6)
+		corner.Parent = btn
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(100, 100, 100)
+		stroke.Thickness = 1
+		stroke.Parent = btn
+
+		-- マウスを乗せた時のエフェクト
+		btn.MouseEnter:Connect(function()
+			btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+			stroke.Color = Color3.fromRGB(0, 255, 255)
+		end)
+		btn.MouseLeave:Connect(function()
+			btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+			stroke.Color = Color3.fromRGB(100, 100, 100)
+		end)
+
+		-- ★クリックされたらサーバーに「装備して！」とリクエストを送る
+		btn.MouseButton1Click:Connect(function()
+			-- クリックエフェクト
+			btn.BackgroundColor3 = Color3.fromRGB(80, 240, 255)
+			btn.TextColor3 = Color3.new(0, 0, 0)
+			task.delay(0.1, function()
+				btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+				btn.TextColor3 = Color3.fromRGB(200, 200, 200)
+			end)
+
+			if equipItemEvent then
+				equipItemEvent:FireServer(itemType, itemName)
+			end
+		end)
+	end
+end
+
+-- 左側に武器リストを配置 (X座標: 0.08)
+local weapons = { "BouncyGun", "BouncyShotgun", "BouncySMG", "BouncyGrenade" }
+createItemList(loadoutBg, "WEAPONS (Slot 1 & 2)", 0.08, weapons, "Weapon")
+
+-- 右側にスキルリストを配置 (X座標: 0.52)
+local skills =
+	{ "Energy Shield", "HighJump", "SpeedBoost", "Invisibility", "Teleport", "TimeSlow", "Giant", "Mini", "XRay" }
+createItemList(loadoutBg, "ABILITIES (Slot Q & Z)", 0.52, skills, "Skill")
+
+-- サーバーから「開け」と命令が来たら表示
+local openLoadoutEvent = ReplicatedStorage:WaitForChild("OpenLoadout", 5)
+if openLoadoutEvent then
+	openLoadoutEvent.OnClientEvent:Connect(function()
+		loadoutScreen.Enabled = true
+
+		-- ★追加: 端末を開いた瞬間、強制的に武器をしまってマウスのロックを解除する
+		local char = player.Character
+		local hum = char and char:FindFirstChild("Humanoid")
+		if hum then
+			hum:UnequipTools()
+		end
+	end)
+end
+
+-- 閉じるボタンを押した時の処理
+closeBtn.MouseButton1Click:Connect(function()
+	loadoutScreen.Enabled = false
 end)

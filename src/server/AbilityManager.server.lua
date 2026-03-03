@@ -15,104 +15,13 @@ end
 
 local cooldowns = {}
 
--- === 1. 能力・シールドピックアップ台の処理 ===
-local function assignSkillToSlot(player, skillName)
-	local sq = player:GetAttribute("SlotQ") or ""
-	local sz = player:GetAttribute("SlotZ") or ""
-
-	-- すでに同じものを持っているなら拾わない
-	if sq == skillName or sz == skillName then
-		return false
-	end
-
-	if sq == "" then
-		player:SetAttribute("SlotQ", skillName)
-	elseif sz == "" then
-		player:SetAttribute("SlotZ", skillName)
-	else
-		-- どちらも埋まっている場合は、Q枠に上書きする
-		player:SetAttribute("SlotQ", skillName)
-	end
-	return true
-end
-
-local function setupAbilitySpawners()
-	for _, spawner in ipairs(Workspace:GetDescendants()) do
-		if spawner.Name == "AbilitySpawner" and spawner:IsA("Model") then
-			local abilityNameValue = spawner:FindFirstChild("AbilityName")
-			if abilityNameValue then
-				local clickDetector = spawner:FindFirstChildOfClass("ClickDetector")
-				if clickDetector then
-					clickDetector:Destroy()
-				end
-
-				local targetPart = spawner:FindFirstChild("Part") or spawner.PrimaryPart or spawner
-				local prompt = Instance.new("ProximityPrompt")
-				prompt.ActionText = "Get Ability"
-				prompt.ObjectText = abilityNameValue.Value
-				prompt.KeyboardKeyCode = Enum.KeyCode.E
-				prompt.RequiresLineOfSight = false
-				prompt.MaxActivationDistance = 12
-				prompt.Parent = targetPart
-
-				prompt.Triggered:Connect(function(player)
-					local abilityName = abilityNameValue.Value
-					if not GameConfig.Abilities[abilityName] then
-						return
-					end
-
-					if assignSkillToSlot(player, abilityName) then
-						local char = player.Character
-						if char and char:FindFirstChild("HumanoidRootPart") then
-							local sound = Instance.new("Sound")
-							sound.SoundId = "rbxassetid://86070307558627"
-							sound.Volume = 1.0
-							sound.Parent = char.HumanoidRootPart
-							sound:Play()
-							Debris:AddItem(sound, 1)
-						end
-					end
-				end)
-			end
-		elseif spawner.Name == "ShieldSpawner" and spawner:IsA("Model") then
-			local targetPart = spawner:FindFirstChild("Part") or spawner.PrimaryPart or spawner
-			local prompt = Instance.new("ProximityPrompt")
-			prompt.ActionText = "Equip"
-			prompt.ObjectText = "Energy Shield"
-			prompt.KeyboardKeyCode = Enum.KeyCode.E
-			prompt.RequiresLineOfSight = false
-			prompt.MaxActivationDistance = 12
-			prompt.Parent = targetPart
-
-			prompt.Triggered:Connect(function(player)
-				if assignSkillToSlot(player, "Energy Shield") then
-					local char = player.Character
-					if char and char:FindFirstChild("HumanoidRootPart") then
-						local sound = Instance.new("Sound")
-						sound.SoundId = "rbxassetid://86070307558627"
-						sound.Volume = 1.0
-						sound.Pitch = 1.2
-						sound.Parent = char.HumanoidRootPart
-						sound:Play()
-						Debris:AddItem(sound, 1)
-					end
-				end
-			end)
-		end
-	end
-end
-
-task.spawn(function()
-	task.wait(3)
-	setupAbilitySpawners()
-end)
-
--- === 2. 能力の発動処理 ===
+-- === 能力の発動処理 ===
+-- ★修正: クライアントから送られてきた requestedSkill（発動したい能力名）を受け取る
 abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 	local sq = player:GetAttribute("SlotQ")
 	local sz = player:GetAttribute("SlotZ")
 
-	-- 本当にQかZに持っているかチェック
+	-- ★追加: 本当にQかZにそのスキルをセットしているかチェック（不正防止）
 	if sq ~= requestedSkill and sz ~= requestedSkill then
 		return
 	end
@@ -280,7 +189,6 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 		sound:Play()
 		Debris:AddItem(sound, 2)
 
-		-- 1. 当たり判定用の「透明なドーム（球体）」
 		local hitZone = Instance.new("Part")
 		hitZone.Name = "TimeSlowZone"
 		hitZone.Shape = Enum.PartType.Ball
@@ -292,7 +200,6 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 		hitZone.CFrame = rootPart.CFrame
 		hitZone.Parent = workspace
 
-		-- 2. 見た目用の「地面に広がる光るエリア（シリンダー）」
 		local visualZone = Instance.new("Part")
 		visualZone.Name = "VisualZone"
 		visualZone.Shape = Enum.PartType.Cylinder
@@ -349,7 +256,6 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 				end
 			end
 		end)
-
 		Debris:AddItem(hitZone, abilityConfig.Duration)
 	elseif abilityName == "Giant" or abilityName == "Mini" then
 		local sound = Instance.new("Sound")
@@ -398,7 +304,6 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 			if char then
 				char:SetAttribute("DamageMultiplier", 1.0)
 			end
-
 			if rootPart and rootPart.Parent then
 				local revSound = Instance.new("Sound")
 				revSound.SoundId = "rbxassetid://2868285516"
