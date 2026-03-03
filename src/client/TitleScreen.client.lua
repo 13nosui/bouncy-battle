@@ -42,7 +42,7 @@ titleLabel.Position = UDim2.new(0, 0, 0.1, 0)
 titleLabel.BackgroundTransparency = 1
 titleLabel.Text = "BOUNCY BATTLE"
 titleLabel.Font = Enum.Font.FredokaOne
-titleLabel.TextColor3 = Color3.fromRGB(80, 240, 255)
+titleLabel.TextColor3 = Color3.fromRGB(255, 20, 20)
 titleLabel.TextSize = 80
 titleLabel.TextStrokeTransparency = 0
 titleLabel.Parent = screenGui
@@ -50,12 +50,12 @@ titleLabel.Parent = screenGui
 -- サブタイトル
 local subLabel = Instance.new("TextLabel")
 subLabel.Size = UDim2.new(1, 0, 0.1, 0)
-subLabel.Position = UDim2.new(0, 0, 0.4, 0)
+subLabel.Position = UDim2.new(0, 0, 0.3, 0)
 subLabel.BackgroundTransparency = 1
 subLabel.Text = "CHAOTIC PHYSICS FPS"
 subLabel.Font = Enum.Font.GothamBold
 subLabel.TextColor3 = Color3.new(1, 1, 1)
-subLabel.TextSize = 24
+subLabel.TextSize = 32
 subLabel.TextStrokeTransparency = 0.5
 subLabel.Parent = screenGui
 

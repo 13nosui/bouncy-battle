@@ -650,3 +650,16 @@ RunService.RenderStepped:Connect(function()
 		ammoLabel.Text = ""
 	end
 end)
+
+-- ==========================================
+-- ★追加: タイトル画面中（プレイ前）はHUD全体を隠す処理
+-- ==========================================
+if loadoutGui then
+	-- 最初はプレイヤーの準備状態（IsReady）に合わせて表示をオフにする
+	loadoutGui.Enabled = player:GetAttribute("IsReady") == true
+
+	-- 「PLAY」を押して準備完了（IsReadyがtrue）になった瞬間にHUDを表示する
+	player:GetAttributeChangedSignal("IsReady"):Connect(function()
+		loadoutGui.Enabled = player:GetAttribute("IsReady") == true
+	end)
+end
