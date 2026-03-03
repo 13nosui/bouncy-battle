@@ -113,9 +113,7 @@ Players.PlayerAdded:Connect(function(player)
 		character:SetAttribute("IsReloading", false)
 		character:SetAttribute("EmptyClicked", false)
 
-		-- ★変更: 死んで復活するたびにスキルを失う
-		player:SetAttribute("SlotQ", "")
-		player:SetAttribute("SlotZ", "")
+		-- ★修正: 復活してもスキルを没収しないように、SlotQとSlotZのリセット処理を削除しました！
 	end)
 end)
 

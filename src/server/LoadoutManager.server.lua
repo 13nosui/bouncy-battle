@@ -111,6 +111,7 @@ equipItemEvent.OnServerEvent:Connect(function(player, itemType, itemName)
 		local clonedWeapon = weaponTemplate:Clone()
 		clonedWeapon:SetAttribute("Slot", assignSlot)
 		clonedWeapon.Parent = backpack
+		player:SetAttribute("Slot" .. tostring(assignSlot), itemName)
 		playSound(character, "rbxassetid://2868285516", 1.0) -- カチャッ
 	elseif itemType == "Skill" then
 		-- ★追加: アンロック（購入）判定
