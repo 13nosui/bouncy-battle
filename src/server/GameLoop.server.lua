@@ -515,10 +515,11 @@ local function onHumanoidDied(humanoid, player)
 			if stats then
 				stats.Kills.Value = stats.Kills.Value + 1
 
-				-- ★追加: キルした時に10コインあげる！
+				-- ★追加・修正: キルした時に10コインあげる！(VIPなら2倍の20コイン！)
 				local coins = stats:FindFirstChild("Coins")
 				if coins then
-					coins.Value = coins.Value + 10
+					local reward = killer:GetAttribute("IsVIP") and 20 or 10
+					coins.Value = coins.Value + reward
 				end
 			end
 
@@ -543,10 +544,11 @@ Players.PlayerAdded:Connect(function(player)
 						cameraEvent:FireAllClients("Win", player.Character)
 					end
 
-					-- ★追加: 優勝した時にボーナスで100コインあげる！
+					-- ★追加・修正: 優勝した時にボーナスで100コインあげる！(VIPなら2倍の200コイン！)
 					local coins = leaderstats:FindFirstChild("Coins")
 					if coins then
-						coins.Value = coins.Value + 100
+						local winReward = player:GetAttribute("IsVIP") and 200 or 100
+						coins.Value = coins.Value + winReward
 					end
 
 					isMatchActive = false

@@ -31,10 +31,11 @@ local function spawnBot()
 			if stats then
 				stats.Kills.Value = stats.Kills.Value + 1
 
-				-- ★追加: Botを倒した時も10コインあげる！
+				-- ★修正: キル報酬をここで一本化！（VIPなら+20、通常なら+10）
 				local coins = stats:FindFirstChild("Coins")
 				if coins then
-					coins.Value = coins.Value + 10
+					local reward = killerPlayer:GetAttribute("IsVIP") and 20 or 10
+					coins.Value = coins.Value + reward
 				end
 			end
 

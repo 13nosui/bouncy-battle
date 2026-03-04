@@ -294,6 +294,49 @@ local ITEM_PRICES = {
 	["XRay"] = 700,
 }
 
+-- （前略... closeCorner の設定部分の直後に追加）
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 8)
+closeCorner.Parent = closeBtn
+
+-- ★追加: マネタイズ（課金）ボタンの作成
+local shopFrame = Instance.new("Frame")
+shopFrame.Size = UDim2.new(1, 0, 0, 60)
+shopFrame.Position = UDim2.new(0, 0, 1, -80)
+shopFrame.BackgroundTransparency = 1
+shopFrame.Parent = loadoutBg
+
+local buyVipBtn = Instance.new("TextButton")
+buyVipBtn.Text = "🌟 BUY VIP PASS (x2 COINS)"
+buyVipBtn.Size = UDim2.new(0, 300, 1, 0)
+buyVipBtn.Position = UDim2.new(0.5, -350, 0, 0)
+buyVipBtn.BackgroundColor3 = Color3.fromRGB(255, 180, 0)
+buyVipBtn.TextColor3 = Color3.new(0, 0, 0)
+buyVipBtn.Font = Enum.Font.GothamBold
+buyVipBtn.TextSize = 18
+buyVipBtn.Parent = shopFrame
+Instance.new("UICorner", buyVipBtn).CornerRadius = UDim.new(0, 8)
+
+local buyCoinBtn = Instance.new("TextButton")
+buyCoinBtn.Text = "💰 BUY 500 COINS"
+buyCoinBtn.Size = UDim2.new(0, 300, 1, 0)
+buyCoinBtn.Position = UDim2.new(0.5, 50, 0, 0)
+buyCoinBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+buyCoinBtn.TextColor3 = Color3.new(0, 0, 0)
+buyCoinBtn.Font = Enum.Font.GothamBold
+buyCoinBtn.TextSize = 18
+buyCoinBtn.Parent = shopFrame
+Instance.new("UICorner", buyCoinBtn).CornerRadius = UDim.new(0, 8)
+
+local purchaseEvent = ReplicatedStorage:WaitForChild("PurchaseEvent", 5)
+
+buyVipBtn.MouseButton1Click:Connect(function()
+	if purchaseEvent then purchaseEvent:FireServer("VIP") end
+end)
+buyCoinBtn.MouseButton1Click:Connect(function()
+	if purchaseEvent then purchaseEvent:FireServer("Coin") end
+end)
+
 local equipItemEvent = ReplicatedStorage:WaitForChild("EquipItem", 5)
 
 -- リストを作る関数（値段と鍵マーク対応版）
