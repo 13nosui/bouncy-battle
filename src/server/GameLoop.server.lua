@@ -44,6 +44,21 @@ if not cameraEvent then
 	cameraEvent.Parent = ReplicatedStorage
 end
 
+-- ==========================================
+-- ★追加: タイトル画面からの「PLAY」合図を受け取って、準備完了にする！
+-- ==========================================
+local readyEvent = ReplicatedStorage:FindFirstChild("PlayerReady")
+if not readyEvent then
+	readyEvent = Instance.new("RemoteEvent")
+	readyEvent.Name = "PlayerReady"
+	readyEvent.Parent = ReplicatedStorage
+end
+
+readyEvent.OnServerEvent:Connect(function(player)
+	player:SetAttribute("IsReady", true)
+	print(player.Name .. " が準備完了しました！") -- 確認用のログ
+end)
+
 -- ★変更: 初期状態（何もクリックしていない時）を「Empty Canvas」にしました
 local selectedMapIndex = 2
 local availableMaps = {
@@ -531,7 +546,10 @@ local function onHumanoidDied(humanoid, player)
 end
 
 Players.PlayerAdded:Connect(function(player)
-	-- 少し待ってリーダータッツが作られるのを待つ
+	-- ★追加: サーバーに入った直後は準備未完了（タイトル画面状態）にする
+	player:SetAttribute("IsReady", false)
+
+-- 少し待ってリーダータッツが作られるのを待つ
 	task.wait(0.5)
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
