@@ -565,6 +565,7 @@ local WEAPONS = {
 	["BouncyShotgun"] = true,
 	["BouncySMG"] = true,
 	["BouncyGrenade"] = true,
+	["BouncySniper"] = true,
 }
 
 player.CharacterAdded:Connect(function(char)

@@ -76,6 +76,23 @@ GameConfig.Weapons = {
 		IsExplosive = true, -- 着弾時に爆発するかどうか
 		ExplosionRadius = 15, -- 爆風が届く範囲（スタッド）
 	},
+	["BouncySniper"] = {
+		BulletSize = 1.0, -- 弾の大きさ
+		BulletSpeed = 300, -- スナイパーなので超高速！
+		BulletGravity = 0.05, -- ほとんど重力の影響を受けず真っ直ぐ飛ぶ
+		BulletLife = 10,
+		Bounciness = 0.8, -- 少し跳ねる
+		Damage = 75, -- 高火力（ヘッドショットなどの概念があれば一撃必殺も！）
+		FireCooldown = 1.5, -- 連射できない
+		MaxAmmo = 5, -- マガジンサイズ
+		ReloadTime = 2.5, -- リロードは遅め
+		BulletsPerShot = 1,
+		SpreadAngle = 0, -- まったくブレない（精度100%）
+
+		UseRandomColor = false,
+		BulletColor = Color3.fromRGB(0, 255, 255), -- 例：シアンのレーザー弾
+		TrailDuration = 0.8, -- 軌跡を長めに残すとかっこいい
+	},
 }
 
 -- === シールド（ガード）の設定 ===

@@ -283,6 +283,7 @@ local ITEM_PRICES = {
 	["BouncyShotgun"] = 0,
 	["BouncySMG"] = 0,
 	["BouncyGrenade"] = 500,
+	["BouncySniper"] = 800,
 	["Energy Shield"] = 0,
 	["SpeedBoost"] = 0,
 	["HighJump"] = 200,
@@ -452,7 +453,8 @@ local function createItemList(parent, titleText, posX, items, itemType)
 	end
 end
 
-local weapons = { "BouncyGun", "BouncyShotgun", "BouncySMG", "BouncyGrenade" }
+-- ★末尾に "BouncySniper" を追加！(カンマ区切りに注意してください)
+local weapons = { "BouncyGun", "BouncyShotgun", "BouncySMG", "BouncyGrenade", "BouncySniper" }
 createItemList(loadoutBg, "WEAPONS (Slot 1 & 2)", 0.08, weapons, "Weapon")
 
 local skills =
