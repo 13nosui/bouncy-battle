@@ -12,6 +12,11 @@ local DEFAULT_DATA = {
 	-- 最初から使える武器とスキル
 	UnlockedWeapons = { "BouncyGun", "BouncyShotgun", "BouncySMG" },
 	UnlockedSkills = { "Energy Shield", "SpeedBoost" },
+	-- ★追加: 初期装備
+	Slot1 = "BouncyGun",
+	Slot2 = "",
+	SlotQ = "Energy Shield",
+	SlotZ = "",
 }
 
 -- プレイヤーが入ってきた時の処理（データのロード）
@@ -50,6 +55,12 @@ local function onPlayerAdded(player)
 		local skillsStr = table.concat(data.UnlockedSkills or DEFAULT_DATA.UnlockedSkills, ",")
 		player:SetAttribute("UnlockedWeapons", weaponsStr)
 		player:SetAttribute("UnlockedSkills", skillsStr)
+
+		-- ★追加: 装備スロットの復元
+		player:SetAttribute("Slot1", data.Slot1 or DEFAULT_DATA.Slot1)
+		player:SetAttribute("Slot2", data.Slot2 or DEFAULT_DATA.Slot2)
+		player:SetAttribute("SlotQ", data.SlotQ or DEFAULT_DATA.SlotQ)
+		player:SetAttribute("SlotZ", data.SlotZ or DEFAULT_DATA.SlotZ)
 	else
 		if not success then
 			warn("データの読み込みに失敗しました:", err)
@@ -62,6 +73,12 @@ local function onPlayerAdded(player)
 		local skillsStr = table.concat(DEFAULT_DATA.UnlockedSkills, ",")
 		player:SetAttribute("UnlockedWeapons", weaponsStr)
 		player:SetAttribute("UnlockedSkills", skillsStr)
+
+		-- ★追加: 装備スロットの初期設定
+		player:SetAttribute("Slot1", DEFAULT_DATA.Slot1)
+		player:SetAttribute("Slot2", DEFAULT_DATA.Slot2)
+		player:SetAttribute("SlotQ", DEFAULT_DATA.SlotQ)
+		player:SetAttribute("SlotZ", DEFAULT_DATA.SlotZ)
 	end
 end
 
@@ -81,6 +98,11 @@ local function onPlayerRemoving(player)
 		TotalKills = player:GetAttribute("TotalKills") or 0,
 		UnlockedWeapons = string.split(weaponsStr, ","),
 		UnlockedSkills = string.split(skillsStr, ","),
+		-- ★追加: 装備スロットの保存
+		Slot1 = player:GetAttribute("Slot1") or "",
+		Slot2 = player:GetAttribute("Slot2") or "",
+		SlotQ = player:GetAttribute("SlotQ") or "",
+		SlotZ = player:GetAttribute("SlotZ") or "",
 	}
 
 	-- クラウドに保存
