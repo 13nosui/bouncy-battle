@@ -93,6 +93,23 @@ GameConfig.Weapons = {
 		BulletColor = Color3.fromRGB(0, 255, 255), -- 例：シアンのレーザー弾
 		TrailDuration = 0.8, -- 軌跡を長めに残すとかっこいい
 	},
+	["BouncyAssaultRifle"] = {
+		BulletSize = 1.0, -- 標準的な弾のサイズ
+		BulletSpeed = 200, -- SMGより速く、スナイパーより遅い弾速
+		BulletGravity = 0.1, -- 通常の重力
+		BulletLife = 5,
+		Bounciness = 0.6, -- 少しだけ跳ねる
+		Damage = 15, -- 連射力が高いので1発のダメージは少し控えめ
+		FireCooldown = 0.12, -- アサルトライフルらしい高速連射！
+		MaxAmmo = 30, -- 定番の30発マガジン
+		ReloadTime = 2.0, -- リロードにかかる時間
+		BulletsPerShot = 1,
+		SpreadAngle = 3, -- ほんの少しだけ弾がブレる（反動の表現）
+
+		UseRandomColor = false,
+		BulletColor = Color3.fromRGB(255, 150, 50), -- 例：オレンジ色の曳光弾
+		TrailDuration = 0.4, -- 軌跡の長さ
+	},
 }
 
 -- === シールド（ガード）の設定 ===

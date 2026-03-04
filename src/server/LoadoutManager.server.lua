@@ -10,6 +10,7 @@ local ITEM_PRICES = {
 	["BouncySMG"] = 0,
 	["BouncyGrenade"] = 500,
 	["BouncySniper"] = 800,
+	["BouncyAssaultRifle"] = 600,
 	["Energy Shield"] = 0,
 	["SpeedBoost"] = 0,
 	["HighJump"] = 200,
