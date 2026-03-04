@@ -110,6 +110,15 @@ local function onPlayerRemoving(player)
 		PlayerDataStore:SetAsync(tostring(player.UserId), dataToSave)
 	end)
 
+	-- ==========================================
+	-- ★追加: ランキング用（OrderedDataStore）にも保存
+	-- ==========================================
+	local KillsLeaderboard = DataStoreService:GetOrderedDataStore("KillsLeaderboard_v1")
+	pcall(function()
+		-- OrderedDataStoreは「数字（整数）」しか保存できないので、TotalKillsだけを入れる
+		KillsLeaderboard:SetAsync(tostring(player.UserId), dataToSave.TotalKills)
+	end)
+
 	if not success then
 		warn("データの保存に失敗しました:", err)
 	else
