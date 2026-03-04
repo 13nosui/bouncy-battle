@@ -110,8 +110,15 @@ if lobbySpawn then
 	CAMERA_CENTER = lobbySpawn.Position
 end
 
+local runConnection = nil
+
 local function updateCamera()
 	if not isTitleActive then
+		-- タイトルが終わったら、カメラを回すループ処理自体を完全に破壊する
+		if runConnection then
+			runConnection:Disconnect()
+			runConnection = nil
+		end
 		return
 	end
 
@@ -121,13 +128,15 @@ local function updateCamera()
 
 	local camPos = CAMERA_CENTER + Vector3.new(x, CAMERA_HEIGHT, z)
 
-	camera.CameraType = Enum.CameraType.Scriptable
-	camera.CFrame = CFrame.lookAt(camPos, CAMERA_CENTER)
+	-- ★修正: 常に最新の本物のカメラを取得して回す
+	local currentCam = Workspace.CurrentCamera
+	currentCam.CameraType = Enum.CameraType.Scriptable
+	currentCam.CFrame = CFrame.lookAt(camPos, CAMERA_CENTER)
 end
 
-RunService.RenderStepped:Connect(updateCamera)
+runConnection = RunService.RenderStepped:Connect(updateCamera)
 
--- ★追加: 起動時にコントローラーのフォーカスをPLAYボタンに合わせる
+-- 起動時にコントローラーのフォーカスをPLAYボタンに合わせる
 task.delay(0.5, function()
 	if isTitleActive and screenGui.Parent then
 		GuiService.SelectedObject = playButton
@@ -135,14 +144,12 @@ task.delay(0.5, function()
 end)
 
 -- === ゲーム開始処理 ===
--- MouseButton1Click はコントローラーのAボタン(Xbox) / ×ボタン(PS) でも発火します
 playButton.MouseButton1Click:Connect(function()
 	if not isTitleActive then
 		return
 	end
 	isTitleActive = false
 
-	-- ★追加: UI選択を解除（これをしておかないとゲーム中に見えないボタンを選択し続けてしまう）
 	GuiService.SelectedObject = nil
 
 	-- UIを消すアニメーション
@@ -155,6 +162,25 @@ playButton.MouseButton1Click:Connect(function()
 
 	-- アニメーション完了を待つ
 	buttonTween.Completed:Wait()
+
+	-- ==========================================
+	-- ★超重要修正: 完璧なカメラロック解除の手順（読み込み待ち追加版）
+	-- ==========================================
+	local realCamera = Workspace.CurrentCamera
+
+	-- 手順1: キャラクターとHumanoidが完全に読み込まれるまで確実に待つ！
+	local character = player.Character or player.CharacterAdded:Wait()
+	local humanoid = character:WaitForChild("Humanoid")
+
+	-- 手順2: 迷子にならないよう、確実に自分をターゲットにセット！
+	realCamera.CameraSubject = humanoid
+
+	-- 手順3: カメラをCustom（自由操作）に戻す！
+	realCamera.CameraType = Enum.CameraType.Custom
+
+	-- 手順4: 念押しでマウスのロック状態をデフォルトに戻す
+	local UserInputService = game:GetService("UserInputService")
+	UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 
 	screenGui:Destroy()
 
@@ -171,7 +197,6 @@ playButton.MouseButton1Click:Connect(function()
 	if hud then
 		hud.Enabled = true
 	end
-
-	-- カメラを戻す
-	camera.CameraType = Enum.CameraType.Custom
+	
+	-- ※一番下にあった古い camera.CameraType... のコードは削除しました！
 end)

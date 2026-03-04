@@ -625,7 +625,9 @@ effectEvent.OnClientEvent:Connect(function(effectType, data)
 			return
 		end
 		local spawnCFrame
-		local muzzle = toolHandle:FindFirstChild("Muzzle")
+		-- 修正: toolHandleの親(Tool)全体から Muzzle を探す
+		local tool = toolHandle.Parent
+		local muzzle = tool and tool:FindFirstChild("Muzzle", true)
 		if muzzle then
 			spawnCFrame = muzzle.WorldCFrame
 		else

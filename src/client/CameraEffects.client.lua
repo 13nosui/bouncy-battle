@@ -1,3 +1,4 @@
+local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
@@ -66,30 +67,40 @@ local function updateCameraMode()
 	local inMatch = player:GetAttribute("InMatch")
 	local humanoid = player.Character and player.Character:FindFirstChild("Humanoid")
 
-	if inMatch then
-		-- 試合中: 強制1人称
-		player.CameraMode = Enum.CameraMode.LockFirstPerson
-		camera.CameraType = Enum.CameraType.Custom -- ★試合中は通常(Custom)に戻す
+	-- ★超重要修正: 古いカメラ変数(camera)ではなく、常に最新のカメラを取得する！
+	local realCamera = workspace.CurrentCamera
 
-		-- カメラ位置とFOVを元に戻す
+	if humanoid then
+		realCamera.CameraSubject = humanoid
+	end
+
+	if inMatch then
+		player.CameraMode = Enum.CameraMode.LockFirstPerson
+		realCamera.CameraType = Enum.CameraType.Custom 
+
 		if humanoid then
 			humanoid.CameraOffset = Vector3.new(0, 0, 0)
 		end
-		TweenService:Create(camera, TweenInfo.new(0.5), { FieldOfView = 70 }):Play()
+		
+		player.CameraMinZoomDistance = 0.5
+		player.CameraMaxZoomDistance = 0.5
+		
+		TweenService:Create(realCamera, TweenInfo.new(0.5), { FieldOfView = 70 }):Play()
 	else
-		-- ロビー: 3人称
 		player.CameraMode = Enum.CameraMode.Classic
-		camera.CameraType = Enum.CameraType.Follow -- ★移動時にカメラが自動で背中を追うモード
+		realCamera.CameraType = Enum.CameraType.Custom 
+
+		task.delay(0.1, function()
+			UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+		end)
 
 		player.CameraMinZoomDistance = 10
 		player.CameraMaxZoomDistance = 15
 
-		-- カメラの注視点を「頭の上（Y軸に+2.5）」にズラす
 		if humanoid then
 			humanoid.CameraOffset = Vector3.new(0, 2.5, 0)
 		end
-		-- FOVを広げて空間を広く見せる
-		TweenService:Create(camera, TweenInfo.new(0.5), { FieldOfView = 85 }):Play()
+		TweenService:Create(realCamera, TweenInfo.new(0.5), { FieldOfView = 85 }):Play()
 	end
 end
 
@@ -104,3 +115,22 @@ end)
 
 -- 初期化
 updateCameraMode()
+
+-- ==========================================
+-- 🔍 原因特定用：UIの見えない壁（Active）をすべて破壊する処理
+-- ==========================================
+local PlayerGui = player:WaitForChild("PlayerGui")
+
+local function disableActive(ui)
+	if ui:IsA("Frame") or ui:IsA("ImageLabel") then
+		ui.Active = false -- 見えない壁を無効化！
+	end
+end
+
+-- すでにあるUIの壁を壊す
+for _, descendant in ipairs(PlayerGui:GetDescendants()) do
+	disableActive(descendant)
+end
+
+-- これから作られるUIの壁も自動で壊す
+PlayerGui.DescendantAdded:Connect(disableActive)

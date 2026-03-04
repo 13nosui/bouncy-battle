@@ -1,3 +1,4 @@
+-- src/client/MovementController.client.lua
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ContextActionService = game:GetService("ContextActionService")
@@ -5,7 +6,6 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
@@ -37,16 +37,21 @@ local lastSlideTime = 0
 local lastWallJumpTime = 0
 
 local currentTilt = 0
+
+-- ★修正: 常に最新の本物のカメラ(CurrentCamera)を使うように修正
 local function updateCameraTilt()
+	local currentCamera = workspace.CurrentCamera
+	if not currentCamera then return end
+
 	local moveDir = humanoid.MoveDirection
-	local rightVec = camera.CFrame.RightVector
+	local rightVec = currentCamera.CFrame.RightVector
 	local dot = moveDir:Dot(rightVec)
 	local targetTilt = 0
 	if math.abs(dot) > 0.5 then
 		targetTilt = (dot > 0) and -TILT_ANGLE or TILT_ANGLE
 	end
 	currentTilt = currentTilt + (targetTilt - currentTilt) * TILT_SPEED
-	camera.CFrame = camera.CFrame * CFrame.Angles(0, 0, math.rad(currentTilt))
+	currentCamera.CFrame = currentCamera.CFrame * CFrame.Angles(0, 0, math.rad(currentTilt))
 end
 
 local function updateMovementState()
@@ -54,7 +59,6 @@ local function updateMovementState()
 		return
 	end
 
-	-- ★追加: 現在のサイズ（スケール）を取得
 	local heightScale = 1.0
 	local val = humanoid:FindFirstChild("BodyHeightScale")
 	if val and val:IsA("NumberValue") then
@@ -63,8 +67,6 @@ local function updateMovementState()
 
 	local targetSpeed = WALK_SPEED
 	local targetFOV = BASE_FOV
-
-	-- ★追加: 腰の高さ（HipHeight）を体のサイズに掛け算してめり込みを防ぐ
 	local targetHipHeight = STAND_HIP_HEIGHT * heightScale
 
 	if isCrouching then
@@ -79,7 +81,9 @@ local function updateMovementState()
 	targetSpeed = targetSpeed * speedBoost
 
 	humanoid.WalkSpeed = targetSpeed
-	TweenService:Create(camera, TweenInfo.new(0.2), { FieldOfView = targetFOV }):Play()
+	
+	-- ★修正: 最新のカメラにTweenを適用する
+	TweenService:Create(workspace.CurrentCamera, TweenInfo.new(0.2), { FieldOfView = targetFOV }):Play()
 	TweenService:Create(humanoid, TweenInfo.new(0.2), { HipHeight = targetHipHeight }):Play()
 end
 
@@ -106,7 +110,6 @@ local function startSlide()
 	slideVelocity.Velocity = rootPart.CFrame.LookVector * SLIDE_SPEED
 	slideVelocity.Parent = rootPart
 
-	-- ★スライディング時の腰の高さもスケールに合わせる
 	local heightScale = 1.0
 	local val = humanoid:FindFirstChild("BodyHeightScale")
 	if val and val:IsA("NumberValue") then
@@ -114,7 +117,8 @@ local function startSlide()
 	end
 
 	TweenService:Create(humanoid, TweenInfo.new(0.1), { HipHeight = CROUCH_HIP_HEIGHT * heightScale }):Play()
-	TweenService:Create(camera, TweenInfo.new(0.1), { FieldOfView = RUN_FOV + 10 }):Play()
+	-- ★修正: 最新のカメラにTweenを適用する
+	TweenService:Create(workspace.CurrentCamera, TweenInfo.new(0.1), { FieldOfView = RUN_FOV + 10 }):Play()
 
 	task.delay(SLIDE_DURATION, function()
 		if slideVelocity then
@@ -167,7 +171,6 @@ ContextActionService:BindAction("CrouchAction", handleCrouch, true, Enum.KeyCode
 ContextActionService:SetTitle("SprintAction", "DASH")
 ContextActionService:SetTitle("CrouchAction", "SLIDE")
 
--- ★追加: サイズが変わったことを検知して歩行設定を更新する処理
 local function setupScaleListener(hum)
 	local heightScaleVal = hum:WaitForChild("BodyHeightScale", 5)
 	if heightScaleVal then
@@ -198,8 +201,14 @@ if character then
 	end)
 end
 
+-- ==========================================
+-- ★超重要修正: 試合中の時だけカメラを傾ける！
+-- （これがないとロビーでもカメラが上書きされて右クリックが効かなくなります）
+-- ==========================================
 RunService.RenderStepped:Connect(function()
-	updateCameraTilt()
+	if player:GetAttribute("InMatch") then
+		updateCameraTilt()
+	end
 end)
 
 UserInputService.JumpRequest:Connect(function()

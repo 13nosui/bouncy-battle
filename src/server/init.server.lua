@@ -235,9 +235,8 @@ fireEvent.OnServerEvent:Connect(function(player, mousePosition)
 
 	if tool and tool:FindFirstChild("Handle") then
 		sourcePart = tool.Handle
-		if sourcePart:FindFirstChild("Muzzle") then
-			muzzle = sourcePart.Muzzle
-		end
+		-- 修正: Handleの中だけでなく、Tool全体から Muzzle を探す
+		muzzle = tool:FindFirstChild("Muzzle", true)
 	end
 
 	if muzzle then
