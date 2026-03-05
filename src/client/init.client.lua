@@ -492,13 +492,13 @@ ContextActionService:BindAction("PublishAction", handlePublish, true, Enum.KeyCo
 ContextActionService:BindAction("ToggleWeapon", handleToggleWeapon, false, Enum.KeyCode.ButtonY)
 
 -- ★Q枠とZ枠のキー登録
-ContextActionService:BindAction("SkillQAction", handleSkillQ, true, Enum.KeyCode.Q, Enum.KeyCode.ButtonL1)
+ContextActionService:BindAction("SkillQAction", handleSkillQ, true, Enum.KeyCode.Three, Enum.KeyCode.ButtonL1)
 ContextActionService:SetPosition("SkillQAction", UDim2.new(1, -100, 1, -100))
-ContextActionService:SetTitle("SkillQAction", "SKILL (Q)")
+ContextActionService:SetTitle("SkillQAction", "SKILL (3)")
 
-ContextActionService:BindAction("SkillZAction", handleSkillZ, true, Enum.KeyCode.Z, Enum.KeyCode.ButtonR1)
+ContextActionService:BindAction("SkillZAction", handleSkillZ, true, Enum.KeyCode.Four, Enum.KeyCode.ButtonR1)
 ContextActionService:SetPosition("SkillZAction", UDim2.new(1, -100, 1, -100))
-ContextActionService:SetTitle("SkillZAction", "SKILL (Z)")
+ContextActionService:SetTitle("SkillZAction", "SKILL (4)")
 
 ContextActionService:SetPosition("FireAction", UDim2.new(1, -100, 1, -100))
 ContextActionService:SetPosition("ReloadOrRotateAction", UDim2.new(1, -100, 1, -100))

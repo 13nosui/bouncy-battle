@@ -178,6 +178,10 @@ equipItemEvent.OnServerEvent:Connect(function(player, itemType, itemName)
 		elseif sz == "" then
 			player:SetAttribute("SlotZ", itemName)
 		else
+			-- ==========================================
+			-- ★成長痛の修正: 両方埋まっている場合は、古いスキルを4枠目にズラして、新しいスキルを3枠目に入れる！
+			-- ==========================================
+			player:SetAttribute("SlotZ", sq)
 			player:SetAttribute("SlotQ", itemName)
 		end
 

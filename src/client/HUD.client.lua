@@ -95,8 +95,8 @@ slotWeapon0.Visible = false -- ★追加: 最初は隠しておく（持って�
 
 local slotWeapon1 = createSlot("Slot_Weapon1", "1", 1)
 local slotWeapon2 = createSlot("Slot_Weapon2", "2", 2)
-local slotAbilityQ = createSlot("Slot_AbilityQ", "Q", 3)
-local slotAbilityZ = createSlot("Slot_AbilityZ", "Z", 4)
+local slotAbilityQ = createSlot("Slot_AbilityQ", "3", 3)
+local slotAbilityZ = createSlot("Slot_AbilityZ", "4", 4)
 
 -- スロットの文字を最新の状態に書き換える関数
 local function updateSlots()
@@ -511,7 +511,7 @@ createItemList(loadoutBg, "WEAPONS (Slot 1 & 2)", 0.08, weapons, "Weapon")
 -- ★修正: DoubleJump, TripleJump, QuadJump を追加！
 local skills =
 	{ "Energy Shield", "HighJump", "DoubleJump", "TripleJump", "QuadJump", "SpeedBoost", "Invisibility", "Teleport", "TimeSlow", "Giant", "Mini", "XRay" }
-createItemList(loadoutBg, "ABILITIES (Slot Q & Z)", 0.52, skills, "Skill")
+createItemList(loadoutBg, "ABILITIES (Slot 3 & 4)", 0.52, skills, "Skill")
 
 if openLoadoutEvent then
 	openLoadoutEvent.OnClientEvent:Connect(function()
