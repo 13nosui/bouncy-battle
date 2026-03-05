@@ -555,57 +555,195 @@ task.spawn(function()
 	end
 end)
 
--- 2. ラウンド情報とスコア（上部中央）
-local roundLabel = Instance.new("TextLabel")
-roundLabel.Size = UDim2.new(0, 300, 0, 40)
-roundLabel.Position = UDim2.new(0.5, -150, 0, 20)
-roundLabel.BackgroundTransparency = 1
-roundLabel.Text = ""
-roundLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-roundLabel.Font = Enum.Font.GothamBlack
-roundLabel.TextSize = 24
-roundLabel.TextStrokeTransparency = 0
-roundLabel.Parent = loadoutGui
+-- ==========================================
+-- 2. RIVALS風 対戦スコアボード（画面上部）
+-- ==========================================
+local topScoreContainer = Instance.new("Frame")
+topScoreContainer.Size = UDim2.new(1, 0, 0, 80)
+topScoreContainer.Position = UDim2.new(0, 0, 0, 15)
+topScoreContainer.BackgroundTransparency = 1
+topScoreContainer.Visible = false -- 最初は隠しておく
+topScoreContainer.Parent = loadoutGui
 
--- ★追加: 5回勝利（キル）の進捗スコア表示
-local scoreLabel = Instance.new("TextLabel")
-scoreLabel.Size = UDim2.new(0, 300, 0, 30)
-scoreLabel.Position = UDim2.new(0.5, -150, 0, 60) -- タイマーのすぐ下に配置
-scoreLabel.BackgroundTransparency = 1
-scoreLabel.Text = ""
-scoreLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-scoreLabel.Font = Enum.Font.GothamBold
-scoreLabel.TextSize = 20
-scoreLabel.TextStrokeTransparency = 0
-scoreLabel.Parent = loadoutGui
+-- 中央のタイマー
+local timerLabel = Instance.new("TextLabel")
+timerLabel.Size = UDim2.new(0, 100, 0, 36)
+timerLabel.Position = UDim2.new(0.5, 0, 0, 10)
+timerLabel.AnchorPoint = Vector2.new(0.5, 0)
+timerLabel.BackgroundTransparency = 0.3
+timerLabel.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+timerLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+timerLabel.Font = Enum.Font.GothamBlack
+timerLabel.TextSize = 20
+timerLabel.Parent = topScoreContainer
+Instance.new("UICorner", timerLabel).CornerRadius = UDim.new(0, 8)
+local timerStroke = Instance.new("UIStroke", timerLabel)
+timerStroke.Color = Color3.fromRGB(80, 80, 80)
+
+-- プレイヤーカード（顔とスコア）を作る関数
+local function createPlayerCard(isLeft)
+	local card = Instance.new("Frame")
+	card.Size = UDim2.new(0, 200, 0, 56)
+	card.AnchorPoint = isLeft and Vector2.new(1, 0) or Vector2.new(0, 0)
+	card.Position = UDim2.new(0.5, isLeft and -70 or 70, 0, 0)
+	card.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+	card.BackgroundTransparency = 0.2
+	card.Parent = topScoreContainer
+	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 28)
+
+	-- 枠線を自分のチームと敵で色分け
+	local stroke = Instance.new("UIStroke", card)
+	stroke.Color = isLeft and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(255, 50, 50)
+	stroke.Thickness = 2
+
+	-- アバター画像（丸く切り抜く）
+	local avatar = Instance.new("ImageLabel")
+	avatar.Size = UDim2.new(0, 48, 0, 48)
+	avatar.AnchorPoint = isLeft and Vector2.new(0, 0.5) or Vector2.new(1, 0.5)
+	avatar.Position = UDim2.new(isLeft and 0 or 1, isLeft and 4 or -4, 0.5, 0)
+	avatar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	avatar.Parent = card
+	Instance.new("UICorner", avatar).CornerRadius = UDim.new(1, 0)
+
+	-- レベル（名前なし、上下中央に配置）
+	local infoLabel = Instance.new("TextLabel")
+	infoLabel.Size = UDim2.new(0, 60, 0, 24)
+	infoLabel.AnchorPoint = isLeft and Vector2.new(0, 0.5) or Vector2.new(1, 0.5)
+	infoLabel.Position = UDim2.new(isLeft and 0 or 1, isLeft and 60 or -60, 0.5, 0)
+	infoLabel.BackgroundTransparency = 1
+	infoLabel.TextColor3 = Color3.fromRGB(220, 220, 220)
+	infoLabel.Font = Enum.Font.GothamBold
+	infoLabel.TextSize = 16
+	infoLabel.TextXAlignment = isLeft and Enum.TextXAlignment.Left or Enum.TextXAlignment.Right
+	infoLabel.Parent = card
+
+	-- スコア表示（めちゃくちゃデカく！）
+	local scoreLabel = Instance.new("TextLabel")
+	scoreLabel.Size = UDim2.new(0, 60, 0, 36)
+	scoreLabel.AnchorPoint = isLeft and Vector2.new(1, 0.5) or Vector2.new(0, 0.5)
+	scoreLabel.Position = UDim2.new(isLeft and 1 or 0, isLeft and -20 or 20, 0.5, 0)
+	scoreLabel.BackgroundTransparency = 1
+	scoreLabel.TextColor3 = Color3.new(1, 1, 1)
+	scoreLabel.Font = Enum.Font.GothamBlack
+	scoreLabel.TextSize = 36
+	scoreLabel.Text = "0" -- ★追加: エラーで止まっても「Label」にならないように最初から0を入れておく
+	scoreLabel.TextStrokeTransparency = 0
+	scoreLabel.TextXAlignment = isLeft and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
+	scoreLabel.Parent = card
+
+	return { Card = card, Avatar = avatar, Info = infoLabel, Score = scoreLabel }
+end
+
+local myCard = createPlayerCard(true)
+local rivalCard = createPlayerCard(false)
 
 local roundStatus = ReplicatedStorage:WaitForChild("RoundStatus", 5)
-if roundStatus then
-	local function updateVisibility(val)
-		if val == "LOBBY" or val == "" then
-			roundLabel.Text = ""
-			scoreLabel.Visible = false -- ロビーではスコアを隠す
-		else
-			roundLabel.Text = val
-			scoreLabel.Visible = true -- 試合中はスコアを表示
+local lastRivalId = nil
+
+-- 対戦UIを更新するメイン処理
+local function updateMatchScoreUI()
+	if not roundStatus then return end
+	local status = roundStatus.Value
+
+	if status == "LOBBY" or status == "" then
+		topScoreContainer.Visible = false
+		return
+	end
+
+	topScoreContainer.Visible = true
+
+	local timeStr = status:match("%d+:%d+")
+	timerLabel.Text = timeStr or "VS"
+
+	-- 1. 自分のデータを反映
+	local myStats = player:FindFirstChild("leaderstats")
+	local myKills = myStats and myStats:FindFirstChild("Kills") and myStats.Kills.Value or 0
+	local myLevel = myStats and myStats:FindFirstChild("Level") and myStats.Level.Value or 1
+	
+	myCard.Info.Text = "Lv." .. myLevel
+	myCard.Score.Text = tostring(myKills)
+	
+	-- ★修正: エラーでプログラムが止まらない「安全な画像取得」
+	local success, myContent = pcall(function()
+		return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailResolution.Size150x150)
+	end)
+	
+	if success and myContent then
+		myCard.Avatar.Image = myContent
+	else
+		myCard.Avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png" 
+	end
+
+	-- 2. ライバルを探す
+	local myTeam = player.Team
+	local bestRival = nil
+	local maxKills = -1
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player then
+			if not myTeam or p.Team ~= myTeam then
+				local stats = p:FindFirstChild("leaderstats")
+				if stats then
+					local kills = stats:FindFirstChild("Kills")
+					if kills and kills.Value > maxKills then
+						maxKills = kills.Value
+						bestRival = p
+					end
+				end
+			end
 		end
 	end
 
-	updateVisibility(roundStatus.Value)
-	roundStatus.Changed:Connect(updateVisibility)
+	-- Bot(Dummy)をライバルとして強制表示
+	local isBot = false
+	if not bestRival then
+		for _, child in ipairs(workspace:GetChildren()) do
+			if child:IsA("Model") and child:FindFirstChild("Humanoid") and child.Name == "Dummy" then
+				bestRival = child
+				isBot = true
+				break
+			end
+		end
+	end
+
+	-- 3. ライバルのデータを反映
+	if bestRival then
+		if isBot then
+			rivalCard.Info.Text = "Lv.1"
+			rivalCard.Score.Text = "0"
+			rivalCard.Avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png" 
+		else
+			local rStats = bestRival:FindFirstChild("leaderstats")
+			local rKills = rStats and rStats:FindFirstChild("Kills") and rStats.Kills.Value or 0
+			local rLevel = rStats and rStats:FindFirstChild("Level") and rStats.Level.Value or 1
+			
+			rivalCard.Info.Text = "Lv." .. rLevel
+			rivalCard.Score.Text = tostring(rKills)
+			
+			if lastRivalId ~= bestRival.UserId then
+				lastRivalId = bestRival.UserId
+				-- ★ここも安全対策
+				local rSuccess, rContent = pcall(function()
+					return Players:GetUserThumbnailAsync(bestRival.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailResolution.Size150x150)
+				end)
+				if rSuccess and rContent then
+					rivalCard.Avatar.Image = rContent
+				else
+					rivalCard.Avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+				end
+			end
+		end
+		rivalCard.Card.Visible = true
+	else
+		rivalCard.Card.Visible = false
+	end
 end
 
--- キル数（スコア）を監視して表示を更新する
+-- 0.5秒おきにスコアボードを最新にする
 task.spawn(function()
-	local leaderstats = player:WaitForChild("leaderstats", 10)
-	if leaderstats then
-		local kills = leaderstats:WaitForChild("Kills", 5)
-		if kills then
-			scoreLabel.Text = "SCORE: " .. kills.Value .. " / 5"
-			kills.Changed:Connect(function(val)
-				scoreLabel.Text = "SCORE: " .. val .. " / 5"
-			end)
-		end
+	while true do
+		pcall(updateMatchScoreUI)
+		task.wait(0.5)
 	end
 end)
 
