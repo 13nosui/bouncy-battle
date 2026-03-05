@@ -288,6 +288,9 @@ local ITEM_PRICES = {
 	["Energy Shield"] = 0,
 	["SpeedBoost"] = 0,
 	["HighJump"] = 200,
+	["DoubleJump"] = 300, -- ★追加
+	["TripleJump"] = 500, -- ★追加
+	["QuadJump"] = 800,   -- ★追加
 	["Invisibility"] = 300,
 	["Teleport"] = 400,
 	["TimeSlow"] = 500,
@@ -458,8 +461,9 @@ end
 local weapons = { "BouncyGun", "BouncyShotgun", "BouncySMG", "BouncyGrenade", "BouncySniper", "BouncyAssaultRifle" }
 createItemList(loadoutBg, "WEAPONS (Slot 1 & 2)", 0.08, weapons, "Weapon")
 
+-- ★修正: DoubleJump, TripleJump, QuadJump を追加！
 local skills =
-	{ "Energy Shield", "HighJump", "SpeedBoost", "Invisibility", "Teleport", "TimeSlow", "Giant", "Mini", "XRay" }
+	{ "Energy Shield", "HighJump", "DoubleJump", "TripleJump", "QuadJump", "SpeedBoost", "Invisibility", "Teleport", "TimeSlow", "Giant", "Mini", "XRay" }
 createItemList(loadoutBg, "ABILITIES (Slot Q & Z)", 0.52, skills, "Skill")
 
 if openLoadoutEvent then

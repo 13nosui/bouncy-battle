@@ -125,6 +125,24 @@ GameConfig.Abilities = {
 		JumpVelocity = 120, -- 上に跳ね上がる力（数字が大きいほど高く飛ぶ）
 		Cooldown = 4.0, -- 次に使えるまでの待ち時間（秒）
 	},
+	["DoubleJump"] = {
+		MaxJumps = 2, -- 地上ジャンプを含めて合計2回跳べる
+		JumpPower = 50, -- 空中で跳ねる力（通常のジャンプと同じくらい）
+		Duration = 10.0, -- 効果が持続する時間（秒）
+		Cooldown = 15.0, -- 次に使えるまでの待ち時間
+	},
+	["TripleJump"] = {
+		MaxJumps = 3, -- 合計3回跳べる
+		JumpPower = 50,
+		Duration = 10.0,
+		Cooldown = 20.0,
+	},
+	["QuadJump"] = {
+		MaxJumps = 4, -- 合計4回跳べる
+		JumpPower = 50,
+		Duration = 10.0,
+		Cooldown = 25.0,
+	},
 	["SpeedBoost"] = {
 		SpeedMultiplier = 2.5, -- 移動速度の倍率
 		Duration = 5.0, -- 持続時間（秒）

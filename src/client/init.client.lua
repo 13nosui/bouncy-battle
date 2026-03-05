@@ -711,3 +711,80 @@ abilityEvent.OnClientEvent:Connect(function(abilityType, config)
 		end)
 	end
 end)
+
+-- ==========================================
+-- ★追加: 多段ジャンプの物理システム (連打バグ対策版)
+-- ==========================================
+local activeMultiJump = false
+local maxMultiJumps = 0
+local currentMultiJumps = 0
+local multiJumpPower = 50
+local lastMultiJumpTime = 0 -- ★追加: 連続発動を防ぐタイマー
+
+-- サーバーから「多段ジャンプモード開始」の合図を受け取る
+abilityEvent.OnClientEvent:Connect(function(abilityType, config)
+	if abilityType == "MultiJump" then
+		activeMultiJump = true
+		maxMultiJumps = config.MaxJumps
+		currentMultiJumps = 0
+		multiJumpPower = config.JumpPower
+		
+		-- 効果時間が切れたらオフにする
+		task.delay(config.Duration, function()
+			activeMultiJump = false
+		end)
+	end
+end)
+
+-- 地面に着地したら、ジャンプ回数を0にリセットする処理
+local function setupJumpReset(character)
+	local hum = character:WaitForChild("Humanoid")
+	hum.StateChanged:Connect(function(oldState, newState)
+		if newState == Enum.HumanoidStateType.Landed then
+			currentMultiJumps = 0
+		end
+	end)
+end
+
+if player.Character then setupJumpReset(player.Character) end
+player.CharacterAdded:Connect(setupJumpReset)
+
+-- スペースキー（ジャンプボタン）が押された瞬間の処理
+UserInputService.JumpRequest:Connect(function()
+	if not activeMultiJump then return end
+	local char = player.Character
+	if not char then return end
+	local hum = char:FindFirstChild("Humanoid")
+	if not hum or hum:GetState() == Enum.HumanoidStateType.Dead then return end
+	
+	local currentState = hum:GetState()
+	
+	-- 空中にいる（Freefall または Jumping）時だけ追加ジャンプを許可
+	if currentState == Enum.HumanoidStateType.Freefall or currentState == Enum.HumanoidStateType.Jumping then
+		
+		-- ★超重要: 0.2秒のクールダウンを設けて、スペース1回の長押しで回数を全消費するのを防ぐ！
+		if tick() - lastMultiJumpTime < 0.2 then return end
+
+		-- (最大回数 - 1) 回まで空中で跳べる（最初の地上ジャンプを1回と数えるため）
+		if currentMultiJumps < maxMultiJumps - 1 then
+			currentMultiJumps = currentMultiJumps + 1
+			lastMultiJumpTime = tick() -- ★跳んだ時間を記録
+			
+			hum:ChangeState(Enum.HumanoidStateType.Jumping)
+			local root = char:FindFirstChild("HumanoidRootPart")
+			if root then
+				-- ★落下中であっても確実に上へ飛ばすため、直接速度を上書きする
+				local vel = root.AssemblyLinearVelocity
+				root.AssemblyLinearVelocity = Vector3.new(vel.X, multiJumpPower, vel.Z)
+				
+				-- 空中ジャンプした時の風切り音
+				local sound = Instance.new("Sound")
+				sound.SoundId = "rbxassetid://12222076" -- 軽快なジャンプ音
+				sound.Volume = 0.5
+				sound.Parent = root
+				sound:Play()
+				game:GetService("Debris"):AddItem(sound, 1)
+			end
+		end
+	end
+end)

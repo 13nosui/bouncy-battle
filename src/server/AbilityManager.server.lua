@@ -76,6 +76,20 @@ abilityEvent.OnServerEvent:Connect(function(player, requestedSkill)
 		}):Play()
 		Debris:AddItem(ring, 0.5)
 
+	-- ==========================================
+	-- ★ここに追加：多段ジャンプが使われたら、プレイヤーの端末に「多段ジャンプモードオン！」と合図を送る
+	-- ==========================================
+	elseif abilityName == "DoubleJump" or abilityName == "TripleJump" or abilityName == "QuadJump" then
+		abilityEvent:FireClient(player, "MultiJump", abilityConfig)
+
+		-- 発動した瞬間のパワーアップ音
+		local sound = Instance.new("Sound")
+		sound.SoundId = "rbxassetid://6075441854"
+		sound.Volume = 0.8
+		sound.Parent = rootPart
+		sound:Play()
+		Debris:AddItem(sound, 2)
+
 	-- ★高速移動（SpeedBoost）の発動
 	elseif abilityName == "SpeedBoost" then
 		char:SetAttribute("SpeedBoostMultiplier", abilityConfig.SpeedMultiplier)
