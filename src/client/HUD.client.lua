@@ -299,6 +299,18 @@ local ITEM_PRICES = {
 	["XRay"] = 700,
 }
 
+-- ★追加: 画面表示用の必要なレベルリスト
+local ITEM_UNLOCK_LEVELS = {
+	["BouncyAssaultRifle"] = 2,
+	["DoubleJump"] = 2,
+	["BouncySniper"] = 3,
+	["TripleJump"] = 5,
+	["Giant"] = 7,
+	["Mini"] = 7,
+	["QuadJump"] = 10,
+	["XRay"] = 15,
+}
+
 -- （前略... closeCorner の設定部分の直後に追加）
 local closeCorner = Instance.new("UICorner")
 closeCorner.CornerRadius = UDim.new(0, 8)
@@ -416,14 +428,30 @@ local function createItemList(parent, titleText, posX, items, itemType)
 
 			local isUnlocked = table.find(string.split(unlockedStr, ","), itemName) ~= nil
 
-			if isUnlocked then
-				statusLabel.Text = "UNLOCKED"
-				statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-				nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+			-- ★追加: 自分のレベルを取得して比較する
+			local myLevel = 1
+			local stats = player:FindFirstChild("leaderstats")
+			if stats and stats:FindFirstChild("Level") then
+				myLevel = stats.Level.Value
+			end
+			local reqLevel = ITEM_UNLOCK_LEVELS[itemName] or 1
+
+			if myLevel < reqLevel then
+				-- レベルが足りない場合（赤色で警告！）
+				statusLabel.Text = "🔒 Lv." .. reqLevel .. " REQUIRED"
+				statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+				nameLabel.TextColor3 = Color3.fromRGB(100, 100, 100) -- 名前も暗くする
 			else
-				statusLabel.Text = "🔒 " .. price .. " Coins"
-				statusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-				nameLabel.TextColor3 = Color3.fromRGB(100, 100, 100) -- 未解放は暗くする
+				-- レベルが足りている場合
+				if isUnlocked then
+					statusLabel.Text = "UNLOCKED"
+					statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+					nameLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+				else
+					statusLabel.Text = "🔒 " .. price .. " Coins"
+					statusLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
+					nameLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+				end
 			end
 		end
 
@@ -436,6 +464,17 @@ local function createItemList(parent, titleText, posX, items, itemType)
 			player:GetAttributeChangedSignal("UnlockedSkills"):Connect(updateButtonState)
 		end
 
+		-- ★追加: レベルが上がった瞬間に、画面の「REQUIRED」の表示も自動で更新させる
+		task.spawn(function()
+			local stats = player:WaitForChild("leaderstats", 10)
+			if stats then
+				local levelObj = stats:WaitForChild("Level", 5)
+				if levelObj then
+					levelObj.Changed:Connect(updateButtonState)
+				end
+			end
+		end)
+
 		btn.MouseEnter:Connect(function()
 			btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
 			stroke.Color = Color3.fromRGB(0, 255, 255)
@@ -446,6 +485,14 @@ local function createItemList(parent, titleText, posX, items, itemType)
 		end)
 
 		btn.MouseButton1Click:Connect(function()
+			-- ★追加: レベル不足の時はクリックしても無効にする
+			local myLevel = 1
+			local stats = player:FindFirstChild("leaderstats")
+			if stats and stats:FindFirstChild("Level") then myLevel = stats.Level.Value end
+			local reqLevel = ITEM_UNLOCK_LEVELS[itemName] or 1
+
+			if myLevel < reqLevel then return end
+
 			btn.BackgroundColor3 = Color3.fromRGB(80, 240, 255)
 			task.delay(0.1, function()
 				btn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)

@@ -25,6 +25,21 @@ local ITEM_PRICES = {
 	["XRay"] = 700,
 }
 
+-- ==========================================
+-- ★追加: アイテムごとの「必要なレベル」を設定
+-- （ここに書かれていないアイテムは Lv.1 から買えます）
+-- ==========================================
+local ITEM_UNLOCK_LEVELS = {
+	["BouncyAssaultRifle"] = 2,
+	["DoubleJump"] = 2,
+	["BouncySniper"] = 3,
+	["TripleJump"] = 5,
+	["Giant"] = 7,
+	["Mini"] = 7,
+	["QuadJump"] = 10,
+	["XRay"] = 15,
+}
+
 local equipItemEvent = ReplicatedStorage:FindFirstChild("EquipItem")
 if not equipItemEvent then
 	equipItemEvent = Instance.new("RemoteEvent")
@@ -48,6 +63,23 @@ local function playSound(character, soundId, pitch)
 end
 
 equipItemEvent.OnServerEvent:Connect(function(player, itemType, itemName)
+	-- ==========================================
+	-- ★追加: サーバー側でのレベルチェック（不正防止）
+	-- ==========================================
+	local myLevel = 1
+	local stats = player:FindFirstChild("leaderstats")
+	if stats and stats:FindFirstChild("Level") then
+		myLevel = stats.Level.Value
+	end
+	local reqLevel = ITEM_UNLOCK_LEVELS[itemName] or 1
+
+	if myLevel < reqLevel then
+		-- レベル不足の場合はブー音を鳴らして弾く
+		local character = player.Character
+		if character then playSound(character, "rbxassetid://127799722113121", 1.0) end
+		return
+	end
+
 	local character = player.Character
 	local humanoid = character and character:FindFirstChild("Humanoid")
 	local backpack = player:FindFirstChild("Backpack")
