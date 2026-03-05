@@ -63,12 +63,10 @@ readyEvent.OnServerEvent:Connect(function(player)
 	print(player.Name .. " が準備完了しました！")
 end)
 
-local selectedMapIndex = 2
+local selectedMapIndex = 1 -- デフォルトを1（Colosseum）にする
 local availableMaps = {
+	{ type = "Official", name = "Colosseum", mapName = "Map_Colosseum" },
 	{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
-	{ type = "Official", name = "Park Stage", mapName = "Map_Park" },
-	{ type = "Official", name = "Battle Arena", mapName = "Map_Arena" },
-	{ type = "Official", name = "Colosseum", mapName = "Map_Colosseum" }, -- ★ここに追加！
 }
 
 local mapBoard = Instance.new("Part")
@@ -130,26 +128,11 @@ local function updateBoardDisplay()
 end
 
 local function refreshAvailableMaps()
+	-- ColosseumとBuildBaseだけにする
 	local newList = {
+		{ type = "Official", name = "Colosseum", mapName = "Map_Colosseum" },
 		{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
-		{ type = "Official", name = "Park Stage", mapName = "Map_Park" },
-		{ type = "Official", name = "Battle Arena", mapName = "Map_Arena" },
-		{ type = "Official", name = "Colosseum", mapName = "Map_Colosseum" }, -- ★ここにも追加！
 	}
-
-	local getStageListBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageList")
-	if getStageListBindable then
-		local communityList = getStageListBindable:Invoke()
-		if communityList then
-			for _, stage in ipairs(communityList) do
-				table.insert(newList, {
-					type = "Community",
-					creator = stage.creatorName,
-					stageId = stage.id,
-				})
-			end
-		end
-	end
 
 	availableMaps = newList
 	if selectedMapIndex > #availableMaps then
