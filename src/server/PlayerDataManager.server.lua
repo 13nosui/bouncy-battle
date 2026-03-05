@@ -1,14 +1,15 @@
 -- src/server/PlayerDataManager.server.lua
 local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage") -- ★追加
 
 local PlayerDataStore = DataStoreService:GetDataStore("BouncyBattleData_v1")
 
 local DEFAULT_DATA = {
 	Coins = 0,
 	TotalKills = 0,
-	WeeklyKills = 0, -- ★追加: 週間キル数
-	LastSavedWeek = "", -- ★追加: 最後に遊んだ「週」の記録
+	WeeklyKills = 0,
+	LastSavedWeek = "",
 	UnlockedWeapons = { "BouncyGun", "BouncyShotgun", "BouncySMG" },
 	UnlockedSkills = { "Energy Shield", "SpeedBoost" },
 	Slot1 = "BouncyGun",
@@ -21,6 +22,14 @@ local function onPlayerAdded(player)
 	local leaderstats = Instance.new("Folder")
 	leaderstats.Name = "leaderstats"
 	leaderstats.Parent = player
+
+	-- ==========================================
+	-- ★追加: リーダーボード（Tab画面）の一番左にLevelを表示！
+	-- ==========================================
+	local level = Instance.new("IntValue")
+	level.Name = "Level"
+	level.Value = 1
+	level.Parent = leaderstats
 
 	local kills = Instance.new("IntValue")
 	kills.Name = "Kills"
@@ -39,14 +48,12 @@ local function onPlayerAdded(player)
 		data = PlayerDataStore:GetAsync(tostring(player.UserId))
 	end)
 
-	-- ★今が「今年の第何週か」を取得（例: "2024_W45"）
 	local currentWeek = os.date("%Y_W%W")
 
 	if success and data then
 		coins.Value = data.Coins or DEFAULT_DATA.Coins
 		player:SetAttribute("TotalKills", data.TotalKills or DEFAULT_DATA.TotalKills)
 		
-		-- ★追加: もし記録されている週が今週と違ったら、週間キルを0にリセット！
 		if data.LastSavedWeek ~= currentWeek then
 			player:SetAttribute("WeeklyKills", 0)
 		else
@@ -77,6 +84,44 @@ local function onPlayerAdded(player)
 		player:SetAttribute("SlotQ", DEFAULT_DATA.SlotQ)
 		player:SetAttribute("SlotZ", DEFAULT_DATA.SlotZ)
 	end
+
+	-- ==========================================
+	-- ★超重要: 累計キル数からレベルを自動計算するシステム
+	-- ==========================================
+	local messageEvent = ReplicatedStorage:WaitForChild("GameMessage", 5)
+
+	local function updateLevel()
+		local totalKills = player:GetAttribute("TotalKills") or 0
+
+		-- RIVALS風の計算式（平方根を利用して、後になるほど上がりにくくする）
+		local newLevel = math.floor(math.sqrt(totalKills / 2)) + 1
+
+		-- レベルアップした瞬間のド派手な演出！
+		if level.Value > 0 and newLevel > level.Value then
+			-- 1. サーバー全体にお祝いメッセージを流して優越感を出す！
+			if messageEvent then
+				messageEvent:FireAllClients("🌟 " .. player.Name .. " reached LEVEL " .. newLevel .. "!", Color3.fromRGB(255, 215, 0))
+			end
+
+			-- 2. 自分にチャリン！と気持ちいい音を鳴らす
+			if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+				local sound = Instance.new("Sound")
+				sound.SoundId = "rbxassetid://106653932643486" 
+				sound.Volume = 2.0
+				sound.Parent = player.Character.HumanoidRootPart
+				sound:Play()
+				game:GetService("Debris"):AddItem(sound, 2)
+			end
+		end
+
+		level.Value = newLevel
+	end
+
+	-- ゲーム開始時（ロード直後）に一度レベルを計算する
+	updateLevel()
+
+	-- 敵を倒して TotalKills が増えるたびに、自動でレベルアップ判定を行う
+	player:GetAttributeChangedSignal("TotalKills"):Connect(updateLevel)
 end
 
 local function onPlayerRemoving(player)
@@ -102,11 +147,9 @@ local function onPlayerRemoving(player)
 
 	pcall(function() PlayerDataStore:SetAsync(tostring(player.UserId), dataToSave) end)
 
-	-- グローバルランキングに保存
 	local KillsLeaderboard = DataStoreService:GetOrderedDataStore("KillsLeaderboard_v1")
 	pcall(function() KillsLeaderboard:SetAsync(tostring(player.UserId), dataToSave.TotalKills) end)
 
-	-- 週間ランキングに保存（週ごとに独立したデータストアになる）
 	local WeeklyLeaderboard = DataStoreService:GetOrderedDataStore("KillsWeekly_" .. currentWeek)
 	pcall(function() WeeklyLeaderboard:SetAsync(tostring(player.UserId), dataToSave.WeeklyKills) end)
 end
