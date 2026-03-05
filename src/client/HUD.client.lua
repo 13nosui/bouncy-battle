@@ -898,3 +898,60 @@ if loadoutGui then
 		loadoutGui.Enabled = player:GetAttribute("IsReady") == true
 	end)
 end
+
+-- ==========================================
+-- ★追加: 敵を倒した時の爽快なキルエフェクト！
+-- ==========================================
+local killEffectEvent = ReplicatedStorage:WaitForChild("KillEffectEvent", 5)
+
+-- 画面中央のキル通知用UIを作成
+local killLabel = Instance.new("TextLabel")
+killLabel.Size = UDim2.new(0, 300, 0, 100)
+killLabel.Position = UDim2.new(0.5, 0, 0.6, 0)
+killLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+killLabel.BackgroundTransparency = 1
+killLabel.Text = "💀 KILL!"
+killLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+killLabel.Font = Enum.Font.GothamBlack
+killLabel.TextSize = 0 -- 最初は小さくしておく
+killLabel.TextStrokeTransparency = 0
+killLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+killLabel.Visible = false
+killLabel.Parent = loadoutGui
+
+if killEffectEvent then
+	killEffectEvent.OnClientEvent:Connect(function()
+		-- 1. キルした瞬間の「チリン！」という爽快な音
+		local sound = Instance.new("Sound")
+		sound.SoundId = "rbxassetid://106653932643486" -- コインのチャリン音を流用
+		sound.Volume = 2.0
+		sound.Pitch = 1.5 -- ピッチを上げて「チリン！」というFPSのヒット音っぽくする
+		sound.Parent = workspace
+		sound:Play()
+		game:GetService("Debris"):AddItem(sound, 2)
+
+		-- 2. UIのアニメーション設定
+		killLabel.Visible = true
+		killLabel.TextSize = 80
+		killLabel.Position = UDim2.new(0.5, 0, 0.6, 0)
+		killLabel.TextTransparency = 0
+		killLabel.TextStrokeTransparency = 0
+
+		-- 少し上にフワッと上がりながら消えるアニメーション
+		local TweenService = game:GetService("TweenService")
+		local tweenInfo = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		local goal = {
+			Position = UDim2.new(0.5, 0, 0.5, 0),
+			TextTransparency = 1,
+			TextStrokeTransparency = 1,
+			TextSize = 40
+		}
+		
+		local tween = TweenService:Create(killLabel, tweenInfo, goal)
+		tween:Play()
+		
+		tween.Completed:Connect(function()
+			killLabel.Visible = false
+		end)
+	end)
+end
