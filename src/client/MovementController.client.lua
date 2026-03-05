@@ -22,10 +22,10 @@ local RUN_FOV = 85
 local TILT_ANGLE = 3
 local TILT_SPEED = 0.1
 
-local WALL_JUMP_FORCE = 70
-local WALL_KICK_FORCE = 80
-local WALL_CHECK_DIST = 4
-local WALL_JUMP_COOLDOWN = 0.5
+-- local WALL_JUMP_FORCE = 70
+-- local WALL_KICK_FORCE = 80
+-- local WALL_CHECK_DIST = 4
+-- local WALL_JUMP_COOLDOWN = 0.5
 
 local STAND_HIP_HEIGHT = 2
 local CROUCH_HIP_HEIGHT = 0.5
@@ -34,7 +34,7 @@ local isSprinting = false
 local isCrouching = false
 local isSliding = false
 local lastSlideTime = 0
-local lastWallJumpTime = 0
+-- local lastWallJumpTime = 0
 
 local currentTilt = 0
 
@@ -211,31 +211,33 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
+-- ==========================================
+-- ★変更: スライディング中の大ジャンプ（スライドジャンプ）
+-- ==========================================
 UserInputService.JumpRequest:Connect(function()
-	local now = tick()
-	if now - lastWallJumpTime < WALL_JUMP_COOLDOWN then
-		return
-	end
-	if humanoid.FloorMaterial ~= Enum.Material.Air then
-		return
-	end
-
-	local params = RaycastParams.new()
-	params.FilterDescendantsInstances = { character }
-	params.FilterType = Enum.RaycastFilterType.Exclude
-
-	local rayOrigin = rootPart.Position
-	local rayDirection = rootPart.CFrame.LookVector * WALL_CHECK_DIST
-	local rayResult = workspace:Raycast(rayOrigin, rayDirection, params)
-
-	if rayResult then
-		lastWallJumpTime = now
-		local wallNormal = rayResult.Normal
-		local jumpVelocity = (Vector3.new(0, 1, 0) * WALL_JUMP_FORCE) + (wallNormal * WALL_KICK_FORCE)
-		rootPart.AssemblyLinearVelocity = jumpVelocity
-
+	-- もしスライディング中なら大ジャンプを発動！
+	if isSliding then
+		-- 1. スライディング状態を強制解除する
+		isSliding = false
+		isCrouching = false
+		
+		-- 前に押し出す力を消す
+		local slideVel = rootPart:FindFirstChild("SlideVelocity")
+		if slideVel then
+			slideVel:Destroy()
+		end
+		
+		-- カメラと姿勢を元に戻す
+		updateMovementState()
+		
+		-- 2. 上方向へ強い力を加える（XとZの勢いはそのまま維持！）
+		local currentVel = rootPart.AssemblyLinearVelocity
+		-- ★ 80の部分が大ジャンプの高さです（通常のジャンプは50程度）。好みに合わせて調整してください！
+		rootPart.AssemblyLinearVelocity = Vector3.new(currentVel.X, 100, currentVel.Z)
+		
+		-- 3. 大ジャンプの気持ちいい効果音
 		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://108486895030065"
+		sound.SoundId = "rbxassetid://108486895030065" -- 勢いのあるジャンプ音
 		sound.Volume = 1.0
 		sound.Parent = rootPart
 		sound:Play()
