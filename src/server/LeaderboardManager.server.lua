@@ -3,86 +3,95 @@ local DataStoreService = game:GetService("DataStoreService")
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 
-local KillsLeaderboard = DataStoreService:GetOrderedDataStore("KillsLeaderboard_v1")
-local UPDATE_INTERVAL = 60 -- 60秒ごとに更新
+local UPDATE_INTERVAL = 30 -- 30秒ごとに更新
 
-local function updateLeaderboard()
-	-- "RankingBoard" という名前のパーツを探す
-	local boardPart = Workspace:FindFirstChild("RankingBoard", true)
+-- ランキングのUI行を作る関数
+local function createRow(template, listFrame, rank, name, score)
+	local row = template:Clone()
+	row.Name = "Row_" .. rank
+	row.LayoutOrder = rank
+	row.Visible = true
+	
+	local rankLabel = row:FindFirstChild("Ranking")
+	local nameLabel = row:FindFirstChild("Name")
+	local killsLabel = row:FindFirstChild("Kills")
+
+	if rankLabel then rankLabel.Text = "#" .. rank end
+	if nameLabel then nameLabel.Text = name end
+	if killsLabel then killsLabel.Text = tostring(score) end
+
+	-- リッチな色付け
+	if rankLabel then
+		if rank == 1 then rankLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+		elseif rank == 2 then rankLabel.TextColor3 = Color3.fromRGB(192, 192, 192)
+		elseif rank == 3 then rankLabel.TextColor3 = Color3.fromRGB(205, 127, 50)
+		else rankLabel.TextColor3 = Color3.new(1, 1, 1) end
+	end
+	row.Parent = listFrame
+end
+
+-- グローバル＆週間ランキングの更新
+local function updateDataStoreBoard(boardName, dataStoreName)
+	local boardPart = Workspace:FindFirstChild(boardName, true)
 	if not boardPart then return end
-
-	-- "ListFrame" を探す
 	local listFrame = boardPart:FindFirstChild("ListFrame", true)
 	if not listFrame then return end
-
-	-- ★あなたがStudioで作った「Template（ひな形）」を探す
 	local template = listFrame:FindFirstChild("Template")
-	if not template then
-		warn("ListFrameの中に 'Template' という名前のFrameが見つかりません！")
-		return
-	end
+	if not template then return end
 
-	-- クラウドから「トップ5」を取得
-	local success, pages = pcall(function()
-		return KillsLeaderboard:GetSortedAsync(false, 5)
-	end)
+	local store = DataStoreService:GetOrderedDataStore(dataStoreName)
+	local success, pages = pcall(function() return store:GetSortedAsync(false, 5) end)
 
 	if success and pages then
-		-- 前回プログラムが自動生成したクローン行だけを削除する（Templateは残す）
 		for _, child in ipairs(listFrame:GetChildren()) do
-			if child:IsA("Frame") and child.Name ~= "Template" then
-				child:Destroy()
-			end
+			if child:IsA("Frame") and child.Name ~= "Template" then child:Destroy() end
 		end
 
 		local rank = 1
-		local data = pages:GetCurrentPage()
-
-		for _, entry in ipairs(data) do
-			local userId = entry.key
-			local kills = entry.value
-
-			-- ユーザーIDから名前を取得
-			local name = "Unknown Player"
-			local s, n = pcall(function() return Players:GetNameFromUserIdAsync(tonumber(userId)) end)
-			if s and n then name = n end
-
-			-- ==========================================
-			-- ★テンプレートをコピーして、1行分のUIを生成！
-			-- ==========================================
-			local row = template:Clone()
-			row.Name = "Row_" .. rank
-			row.LayoutOrder = rank
-			row.Visible = true -- コピーしたものは画面に表示する
-			
-			-- あなたが作ったTextLabelを探して、データを入れる
-			local rankLabel = row:FindFirstChild("Ranking")
-			local nameLabel = row:FindFirstChild("Name")
-			local killsLabel = row:FindFirstChild("Kills")
-
-			if rankLabel then rankLabel.Text = "#" .. rank end
-			if nameLabel then nameLabel.Text = name end
-			if killsLabel then killsLabel.Text = kills end -- "Kills"という文字を付けるかはお好みで！
-
-			-- おまけ：1〜3位の順位の色だけ自動でリッチ（金銀銅）にする演出
-			if rankLabel then
-				if rank == 1 then rankLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
-				elseif rank == 2 then rankLabel.TextColor3 = Color3.fromRGB(192, 192, 192)
-				elseif rank == 3 then rankLabel.TextColor3 = Color3.fromRGB(205, 127, 50)
-				else rankLabel.TextColor3 = Color3.new(1, 1, 1) end
-			end
-
-			-- ListFrameの中に入れて表示させる
-			row.Parent = listFrame
+		for _, entry in ipairs(pages:GetCurrentPage()) do
+			local name = "Unknown"
+			pcall(function() name = Players:GetNameFromUserIdAsync(tonumber(entry.key)) end)
+			createRow(template, listFrame, rank, name, entry.value)
 			rank = rank + 1
 		end
 	end
 end
 
--- ずっと繰り返し更新するループ
+-- リアルタイム（今のサーバー）ランキングの更新
+local function updateRealtimeBoard()
+	local boardPart = Workspace:FindFirstChild("RealtimeBoard", true)
+	if not boardPart then return end
+	local listFrame = boardPart:FindFirstChild("ListFrame", true)
+	if not listFrame then return end
+	local template = listFrame:FindFirstChild("Template")
+	if not template then return end
+
+	-- サーバーにいる全員のキル数を取得して並び替え
+	local playersInfo = {}
+	for _, p in ipairs(Players:GetPlayers()) do
+		local stats = p:FindFirstChild("leaderstats")
+		if stats and stats:FindFirstChild("Kills") then
+			table.insert(playersInfo, {name = p.Name, kills = stats.Kills.Value})
+		end
+	end
+	table.sort(playersInfo, function(a, b) return a.kills > b.kills end)
+
+	for _, child in ipairs(listFrame:GetChildren()) do
+		if child:IsA("Frame") and child.Name ~= "Template" then child:Destroy() end
+	end
+
+	for rank = 1, math.min(5, #playersInfo) do
+		createRow(template, listFrame, rank, playersInfo[rank].name, playersInfo[rank].kills)
+	end
+end
+
+-- ループ処理
 task.spawn(function()
 	while true do
-		updateLeaderboard()
+		local currentWeek = os.date("%Y_W%W")
+		updateDataStoreBoard("RankingBoard", "KillsLeaderboard_v1")
+		updateDataStoreBoard("WeeklyBoard", "KillsWeekly_" .. currentWeek)
+		updateRealtimeBoard()
 		task.wait(UPDATE_INTERVAL)
 	end
 end)

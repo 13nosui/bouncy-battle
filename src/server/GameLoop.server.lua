@@ -541,6 +541,10 @@ local function onHumanoidDied(humanoid, player)
 			-- ★追加: 累計キル数（セーブ用）も増やす
 			local totalKills = killer:GetAttribute("TotalKills") or 0
 			killer:SetAttribute("TotalKills", totalKills + 1)
+
+			-- ★ここに追加：週間キル数も増やす
+			local weeklyKills = killer:GetAttribute("WeeklyKills") or 0
+			killer:SetAttribute("WeeklyKills", weeklyKills + 1)
 		end
 	end
 end
