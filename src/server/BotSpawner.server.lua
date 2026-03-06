@@ -168,11 +168,21 @@ local function spawnBot()
 	startBotAI(bot)
 end
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local roundStatus = ReplicatedStorage:FindFirstChild("RoundStatus")
+
 task.spawn(function()
 	while true do
 		task.wait(2)
 
-		if Workspace:FindFirstChild("ActiveMap") then
+		-- ★追加: 現在BUILDモードかどうかを判定する
+		local isBuildMode = false
+		if roundStatus and string.match(roundStatus.Value, "BUILD") then
+			isBuildMode = true
+		end
+
+		-- 試合中であり、かつBUILDモード「ではない」時だけBotを出す！
+		if Workspace:FindFirstChild("ActiveMap") and not isBuildMode then
 			local currentBotCount = 0
 
 			for _, child in ipairs(Workspace:GetChildren()) do
@@ -189,6 +199,7 @@ task.spawn(function()
 				end
 			end
 		else
+			-- ロビーにいる時や、BUILDモードの時はBotを全消去して綺麗にする
 			for _, child in ipairs(Workspace:GetChildren()) do
 				if child.Name == "Dummy" and child:FindFirstChild("Humanoid") then
 					child:Destroy()
