@@ -63,7 +63,7 @@ readyEvent.OnServerEvent:Connect(function(player)
 	print(player.Name .. " が準備完了しました！")
 end)
 
-local selectedMapIndex = 1 -- デフォルトを1（Colosseum）にする
+local selectedMapIndex = 1
 local availableMaps = {
 	{ type = "Official", name = "Colosseum", mapName = "Map_Colosseum" },
 	{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
@@ -128,11 +128,24 @@ local function updateBoardDisplay()
 end
 
 local function refreshAvailableMaps()
-	-- ColosseumとBuildBaseだけにする
 	local newList = {
 		{ type = "Official", name = "Colosseum", mapName = "Map_Colosseum" },
 		{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
 	}
+
+	local getStageListBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageList")
+	if getStageListBindable then
+		local communityList = getStageListBindable:Invoke()
+		if communityList then
+			for _, stage in ipairs(communityList) do
+				table.insert(newList, {
+					type = "Community",
+					creator = stage.creatorName,
+					stageId = stage.id,
+				})
+			end
+		end
+	end
 
 	availableMaps = newList
 	if selectedMapIndex > #availableMaps then
@@ -320,7 +333,7 @@ local function startRound(mode, participants)
 		end
 	elseif gameMode == "FFA" or gameMode == "TDM" then
 		if targetMap.mapName == "Map_BuildBase" or targetMap.type == "Community" then
-			targetMap = { type = "Official", name = "Battle Arena", mapName = "Map_Arena" }
+			targetMap = { type = "Official", name = "Colosseum", mapName = "Map_Colosseum" }
 		end
 	end
 
@@ -440,6 +453,9 @@ local function startRound(mode, participants)
 end
 
 local function onHumanoidDied(humanoid, player)
+	-- ★修正箇所: ここにあった `player:SetAttribute("InMatch", false)` を完全に削除しました！
+	-- 試合中に死んでも、InMatchはtrueのままで維持されるため1人称視点が保たれます！
+
 	if not isMatchActive then
 		return
 	end
@@ -458,7 +474,6 @@ local function onHumanoidDied(humanoid, player)
 		end
 
 		if killer:IsA("Player") and killer ~= player then
-			-- チーム戦での同士討ちチェック
 			if gameMode == "TDM" and player and killer.Team == player.Team and player.Team ~= nil then
 				return
 			end
@@ -467,9 +482,6 @@ local function onHumanoidDied(humanoid, player)
 			if stats then
 				stats.Kills.Value = stats.Kills.Value + 1
 
-				-- ==========================================
-				-- ★修正: 的（ダミー）を倒した時も確実にエフェクトを発動させる！
-				-- ==========================================
 				if killEffectEvent then
 					killEffectEvent:FireClient(killer)
 				end
@@ -486,15 +498,11 @@ local function onHumanoidDied(humanoid, player)
 			local weeklyKills = killer:GetAttribute("WeeklyKills") or 0
 			killer:SetAttribute("WeeklyKills", weeklyKills + 1)
 
-			-- ==========================================
-			-- ★追加: FFAでキルした側（勝者）も体力を全回復してアリーナにワープ（仕切り直し）
-			-- （武器を失わないようにLoadCharacterではなく体力回復と位置移動を行う）
-			-- ==========================================
 			if gameMode == "FFA" then
 				if killerChar then
 					local killerHum = killerChar:FindFirstChild("Humanoid")
 					if killerHum then
-						killerHum.Health = killerHum.MaxHealth -- 体力を全回復
+						killerHum.Health = killerHum.MaxHealth
 
 						task.spawn(function()
 							task.wait(0.2)
@@ -508,7 +516,6 @@ local function onHumanoidDied(humanoid, player)
 							end
 							if #spawns > 0 then
 								local spawn = spawns[math.random(1, #spawns)]
-								-- 新しいランダムな位置にワープさせて仕切り直し
 								killerChar:PivotTo(spawn.CFrame + Vector3.new(0, 3, 0))
 							end
 						end)
@@ -519,9 +526,6 @@ local function onHumanoidDied(humanoid, player)
 	end
 end
 
--- ==========================================
--- ★追加: ダミー（的）の死亡をシステムに検知させる処理
--- ==========================================
 task.spawn(function()
 	while true do
 		for _, child in ipairs(Workspace:GetChildren()) do
@@ -529,7 +533,6 @@ task.spawn(function()
 				if not child:GetAttribute("DeathTracked") then
 					child:SetAttribute("DeathTracked", true)
 					child.Humanoid.Died:Connect(function()
-						-- ダミーが死んだ時は、player部分をnilとして処理を呼び出す
 						onHumanoidDied(child.Humanoid, nil)
 					end)
 				end
@@ -587,7 +590,6 @@ Players.PlayerAdded:Connect(function(player)
 		local kills = leaderstats:FindFirstChild("Kills")
 		if kills then
 			kills.Changed:Connect(function(newValue)
-				-- ★修正: 5キルに到達した時はシンプルに試合終了の処理のみを行う
 				if isMatchActive and newValue >= WIN_SCORE then
 					broadcast(player.Name .. " WINS!", Color3.new(1, 0.5, 0))
 
@@ -608,6 +610,15 @@ Players.PlayerAdded:Connect(function(player)
 	end
 
 	player.CharacterAdded:Connect(function(character)
+		-- ★修正箇所: ロビーに戻る時だけInMatchを確実にfalseにする安全な処理
+		task.spawn(function()
+			task.wait(0.2)
+			-- 試合が動いていない（非アクティブ）のにリスポーンした＝「ロビーにいる」と判定して3人称にする
+			if not isMatchActive then
+				player:SetAttribute("InMatch", false)
+			end
+		end)
+
 		local humanoid = character:WaitForChild("Humanoid")
 		humanoid.Died:Connect(function()
 			onHumanoidDied(humanoid, player)
