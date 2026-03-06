@@ -290,7 +290,7 @@ local ITEM_PRICES = {
 	["HighJump"] = 200,
 	["DoubleJump"] = 300, -- ★追加
 	["TripleJump"] = 500, -- ★追加
-	["QuadJump"] = 800,   -- ★追加
+	["QuadJump"] = 800, -- ★追加
 	["Invisibility"] = 300,
 	["Teleport"] = 400,
 	["TimeSlow"] = 500,
@@ -348,10 +348,14 @@ Instance.new("UICorner", buyCoinBtn).CornerRadius = UDim.new(0, 8)
 local purchaseEvent = ReplicatedStorage:WaitForChild("PurchaseEvent", 5)
 
 buyVipBtn.MouseButton1Click:Connect(function()
-	if purchaseEvent then purchaseEvent:FireServer("VIP") end
+	if purchaseEvent then
+		purchaseEvent:FireServer("VIP")
+	end
 end)
 buyCoinBtn.MouseButton1Click:Connect(function()
-	if purchaseEvent then purchaseEvent:FireServer("Coin") end
+	if purchaseEvent then
+		purchaseEvent:FireServer("Coin")
+	end
 end)
 
 local equipItemEvent = ReplicatedStorage:WaitForChild("EquipItem", 5)
@@ -488,10 +492,14 @@ local function createItemList(parent, titleText, posX, items, itemType)
 			-- ★追加: レベル不足の時はクリックしても無効にする
 			local myLevel = 1
 			local stats = player:FindFirstChild("leaderstats")
-			if stats and stats:FindFirstChild("Level") then myLevel = stats.Level.Value end
+			if stats and stats:FindFirstChild("Level") then
+				myLevel = stats.Level.Value
+			end
 			local reqLevel = ITEM_UNLOCK_LEVELS[itemName] or 1
 
-			if myLevel < reqLevel then return end
+			if myLevel < reqLevel then
+				return
+			end
 
 			btn.BackgroundColor3 = Color3.fromRGB(80, 240, 255)
 			task.delay(0.1, function()
@@ -509,8 +517,20 @@ local weapons = { "BouncyGun", "BouncyShotgun", "BouncySMG", "BouncyGrenade", "B
 createItemList(loadoutBg, "WEAPONS (Slot 1 & 2)", 0.08, weapons, "Weapon")
 
 -- ★修正: DoubleJump, TripleJump, QuadJump を追加！
-local skills =
-	{ "Energy Shield", "HighJump", "DoubleJump", "TripleJump", "QuadJump", "SpeedBoost", "Invisibility", "Teleport", "TimeSlow", "Giant", "Mini", "XRay" }
+local skills = {
+	"Energy Shield",
+	"HighJump",
+	"DoubleJump",
+	"TripleJump",
+	"QuadJump",
+	"SpeedBoost",
+	"Invisibility",
+	"Teleport",
+	"TimeSlow",
+	"Giant",
+	"Mini",
+	"XRay",
+}
 createItemList(loadoutBg, "ABILITIES (Slot 3 & 4)", 0.52, skills, "Skill")
 
 if openLoadoutEvent then
@@ -693,10 +713,12 @@ local lastRivalId = nil
 
 -- 対戦UIを更新するメイン処理
 local function updateMatchScoreUI()
-	if not roundStatus then return end
+	if not roundStatus then
+		return
+	end
 	local status = roundStatus.Value
 
-	if status == "LOBBY" or status == "" then
+	if status == "LOBBY" or status == "" or string.match(status, "BUILD") then
 		topScoreContainer.Visible = false
 		return
 	end
@@ -710,19 +732,23 @@ local function updateMatchScoreUI()
 	local myStats = player:FindFirstChild("leaderstats")
 	local myKills = myStats and myStats:FindFirstChild("Kills") and myStats.Kills.Value or 0
 	local myLevel = myStats and myStats:FindFirstChild("Level") and myStats.Level.Value or 1
-	
+
 	myCard.Info.Text = "Lv." .. myLevel
 	myCard.Score.Text = tostring(myKills)
-	
+
 	-- ★修正: エラーでプログラムが止まらない「安全な画像取得」
 	local success, myContent = pcall(function()
-		return Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailResolution.Size150x150)
+		return Players:GetUserThumbnailAsync(
+			player.UserId,
+			Enum.ThumbnailType.HeadShot,
+			Enum.ThumbnailResolution.Size150x150
+		)
 	end)
-	
+
 	if success and myContent then
 		myCard.Avatar.Image = myContent
 	else
-		myCard.Avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png" 
+		myCard.Avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
 	end
 
 	-- 2. ライバルを探す
@@ -762,20 +788,24 @@ local function updateMatchScoreUI()
 		if isBot then
 			rivalCard.Info.Text = "Lv.1"
 			rivalCard.Score.Text = "0"
-			rivalCard.Avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png" 
+			rivalCard.Avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
 		else
 			local rStats = bestRival:FindFirstChild("leaderstats")
 			local rKills = rStats and rStats:FindFirstChild("Kills") and rStats.Kills.Value or 0
 			local rLevel = rStats and rStats:FindFirstChild("Level") and rStats.Level.Value or 1
-			
+
 			rivalCard.Info.Text = "Lv." .. rLevel
 			rivalCard.Score.Text = tostring(rKills)
-			
+
 			if lastRivalId ~= bestRival.UserId then
 				lastRivalId = bestRival.UserId
 				-- ★ここも安全対策
 				local rSuccess, rContent = pcall(function()
-					return Players:GetUserThumbnailAsync(bestRival.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailResolution.Size150x150)
+					return Players:GetUserThumbnailAsync(
+						bestRival.UserId,
+						Enum.ThumbnailType.HeadShot,
+						Enum.ThumbnailResolution.Size150x150
+					)
 				end)
 				if rSuccess and rContent then
 					rivalCard.Avatar.Image = rContent
@@ -944,14 +974,162 @@ if killEffectEvent then
 			Position = UDim2.new(0.5, 0, 0.5, 0),
 			TextTransparency = 1,
 			TextStrokeTransparency = 1,
-			TextSize = 40
+			TextSize = 40,
 		}
-		
+
 		local tween = TweenService:Create(killLabel, tweenInfo, goal)
 		tween:Play()
-		
+
 		tween.Completed:Connect(function()
 			killLabel.Visible = false
 		end)
+	end)
+end
+
+-- ==========================================
+-- ★追加: RIVALS風 スタイリッシュなマップ投票UI！
+-- ==========================================
+local mapVoteEvent = ReplicatedStorage:WaitForChild("MapVoteEvent", 5)
+
+if mapVoteEvent then
+	local voteGui = Instance.new("ScreenGui")
+	voteGui.Name = "MapVoteGui"
+	voteGui.ResetOnSpawn = false
+	voteGui.IgnoreGuiInset = true
+	voteGui.Parent = playerGui
+
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.new(1, 0, 1, 0)
+	bg.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+	bg.BackgroundTransparency = 0.2
+	bg.Visible = false
+	bg.Parent = voteGui
+
+	-- 背景をぼかしてUIを目立たせる（かっこいい！）
+	local blur = Instance.new("BlurEffect")
+	blur.Size = 0
+	blur.Parent = game.Lighting
+
+	local title = Instance.new("TextLabel")
+	title.Size = UDim2.new(1, 0, 0, 80)
+	title.Position = UDim2.new(0, 0, 0.1, 0)
+	title.BackgroundTransparency = 1
+	title.Text = "VOTE FOR NEXT MAP"
+	title.TextColor3 = Color3.fromRGB(255, 255, 255)
+	title.Font = Enum.Font.GothamBlack
+	title.TextSize = 50
+	title.Parent = bg
+
+	-- ★修正: 縦スクロールができる ScrollingFrame に変更！
+	local container = Instance.new("ScrollingFrame")
+	container.Size = UDim2.new(0.8, 0, 0.6, 0) -- 画面に広く表示
+	container.Position = UDim2.new(0.1, 0, 0.25, 0)
+	container.BackgroundTransparency = 1
+	container.ScrollBarThickness = 12 -- スクロールバーを見やすく太めに
+	container.ScrollBarImageColor3 = Color3.fromRGB(80, 240, 255) -- バーをサイバーな水色に
+	container.AutomaticCanvasSize = Enum.AutomaticSize.Y -- ★超便利魔法：カードが増えると自動で下にスクロールが伸びる！
+	container.CanvasSize = UDim2.new(0, 0, 0, 0)
+	container.Parent = bg
+
+	-- 上下に少し隙間を空けて見栄えを良くする
+	local padding = Instance.new("UIPadding")
+	padding.PaddingTop = UDim.new(0, 10)
+	padding.PaddingBottom = UDim.new(0, 30)
+	padding.Parent = container
+
+	-- ★修正: 横並び（UIListLayout）から、折り返して下に続く「グリッド表示」に変更！
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.new(0, 260, 0, 340) -- カード自体のサイズ
+	layout.CellPadding = UDim2.new(0, 30, 0, 30) -- カード同士の隙間
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = container
+
+	local optionBtns = {}
+
+	mapVoteEvent.OnClientEvent:Connect(function(action, data)
+		if action == "Start" then
+			-- 古いボタンを消す
+			for _, btn in ipairs(optionBtns) do
+				btn:Destroy()
+			end
+			table.clear(optionBtns)
+
+			blur.Size = 20 -- ぼかしを強くする
+			bg.Visible = true
+
+			-- 選択肢の数だけボタンを作る
+			for i, mapInfo in ipairs(data) do
+				local btn = Instance.new("TextButton")
+				btn.Size = UDim2.new(0, 260, 0, 340)
+				btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+				btn.BorderSizePixel = 4
+				btn.BorderColor3 = Color3.fromRGB(60, 60, 70)
+				btn.Text = ""
+				btn.AutoButtonColor = false
+				btn.Parent = container
+
+				local nameLabel = Instance.new("TextLabel")
+				nameLabel.Size = UDim2.new(1, -20, 0.6, 0)
+				nameLabel.Position = UDim2.new(0, 10, 0, 20)
+				nameLabel.BackgroundTransparency = 1
+				nameLabel.Text = string.upper(mapInfo.name)
+				nameLabel.TextColor3 = mapInfo.type == "Community" and Color3.fromRGB(255, 200, 50)
+					or Color3.fromRGB(80, 240, 255)
+				nameLabel.TextScaled = true
+				nameLabel.Font = Enum.Font.GothamBold
+				nameLabel.Parent = btn
+
+				local creatorLabel = Instance.new("TextLabel")
+				creatorLabel.Size = UDim2.new(1, -20, 0.2, 0)
+				creatorLabel.Position = UDim2.new(0, 10, 0.7, 0)
+				creatorLabel.BackgroundTransparency = 1
+				creatorLabel.Text = mapInfo.creator and ("By: " .. mapInfo.creator) or "Official Map"
+				creatorLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+				creatorLabel.TextScaled = true
+				creatorLabel.Font = Enum.Font.Gotham
+				creatorLabel.Parent = btn
+
+				-- クリック時の処理
+				btn.MouseButton1Click:Connect(function()
+					-- 全部リセットしてから、選んだ枠だけを緑に光らせる
+					for _, b in ipairs(optionBtns) do
+						b.BorderColor3 = Color3.fromRGB(60, 60, 70)
+					end
+					btn.BorderColor3 = Color3.fromRGB(100, 255, 100)
+
+					local sound = Instance.new("Sound")
+					sound.SoundId = "rbxassetid://138470560522298"
+					sound.Volume = 1
+					sound.Parent = workspace
+					sound:Play()
+					game:GetService("Debris"):AddItem(sound, 1)
+
+					mapVoteEvent:FireServer(i)
+				end)
+
+				table.insert(optionBtns, btn)
+			end
+		elseif action == "End" then
+			-- 投票終了時：選ばれたマップだけを緑にして、他を暗くする
+			local winningIndex = data
+			for i, btn in ipairs(optionBtns) do
+				if i == winningIndex then
+					btn.BackgroundColor3 = Color3.fromRGB(50, 150, 50)
+					btn.BorderColor3 = Color3.fromRGB(100, 255, 100)
+				else
+					btn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+					btn.BorderColor3 = Color3.fromRGB(40, 40, 50)
+					for _, child in ipairs(btn:GetChildren()) do
+						if child:IsA("TextLabel") then
+							child.TextTransparency = 0.6
+						end
+					end
+				end
+			end
+		elseif action == "Hide" then
+			bg.Visible = false
+			blur.Size = 0
+		end
 	end)
 end

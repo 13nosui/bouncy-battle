@@ -5,6 +5,7 @@ local Workspace = game:GetService("Workspace")
 local Teams = game:GetService("Teams")
 
 local INTERMISSION_TIME = 10
+local VOTE_TIME = 8
 local WIN_SCORE = 5
 local ROUND_TIME = 180
 local SHOW_LOBBY_MESSAGE = false
@@ -51,6 +52,13 @@ if not killEffectEvent then
 	killEffectEvent.Parent = ReplicatedStorage
 end
 
+local mapVoteEvent = ReplicatedStorage:FindFirstChild("MapVoteEvent")
+if not mapVoteEvent then
+	mapVoteEvent = Instance.new("RemoteEvent")
+	mapVoteEvent.Name = "MapVoteEvent"
+	mapVoteEvent.Parent = ReplicatedStorage
+end
+
 local readyEvent = ReplicatedStorage:FindFirstChild("PlayerReady")
 if not readyEvent then
 	readyEvent = Instance.new("RemoteEvent")
@@ -63,116 +71,37 @@ readyEvent.OnServerEvent:Connect(function(player)
 	print(player.Name .. " が準備完了しました！")
 end)
 
-local selectedMapIndex = 1
-local availableMaps = {
-	{ type = "Official", name = "Colosseum", mapName = "Map_Colosseum" },
-	{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
-}
+local function getMapOptions(mode)
+	local options = {}
 
-local mapBoard = Instance.new("Part")
-mapBoard.Name = "MapSelectorBoard"
-mapBoard.Size = Vector3.new(12, 6, 1)
-
-local lobbySpawn = Workspace:FindFirstChild("LobbySpawn", true)
-if lobbySpawn then
-	mapBoard.Position = lobbySpawn.Position + Vector3.new(0, 6, -15)
-else
-	mapBoard.Position = Vector3.new(0, 10, -25)
-end
-
-mapBoard.Anchored = true
-mapBoard.Material = Enum.Material.SmoothPlastic
-mapBoard.Color = Color3.fromRGB(30, 30, 30)
-mapBoard.Parent = Workspace
-
-local surfaceGui = Instance.new("SurfaceGui")
-surfaceGui.Face = Enum.NormalId.Back
-surfaceGui.Parent = mapBoard
-
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 0.3, 0)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "--- NEXT MAP ---"
-titleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-titleLabel.TextScaled = true
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.Parent = surfaceGui
-
-local mapNameLabel = Instance.new("TextLabel")
-mapNameLabel.Size = UDim2.new(1, 0, 0.7, 0)
-mapNameLabel.Position = UDim2.new(0, 0, 0.3, 0)
-mapNameLabel.BackgroundTransparency = 1
-mapNameLabel.Text = "Loading..."
-mapNameLabel.TextColor3 = Color3.fromRGB(80, 240, 255)
-mapNameLabel.TextScaled = true
-mapNameLabel.Font = Enum.Font.GothamBlack
-mapNameLabel.Parent = surfaceGui
-
-local clickDetector = Instance.new("ClickDetector")
-clickDetector.MaxActivationDistance = 30
-clickDetector.Parent = mapBoard
-
-local function updateBoardDisplay()
-	local current = availableMaps[selectedMapIndex]
-	if not current then
-		return
+	if mode == "BUILD" then
+		table.insert(options, { type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase", id = 0 })
+		return options
 	end
 
-	if current.type == "Official" then
-		mapNameLabel.Text = "[CLICK HERE]\n" .. current.name
-		mapNameLabel.TextColor3 = Color3.fromRGB(80, 240, 255)
-	else
-		mapNameLabel.Text = "[CLICK HERE]\nStage " .. current.stageId .. "\n(by " .. current.creator .. ")"
-		mapNameLabel.TextColor3 = Color3.fromRGB(255, 200, 50)
-	end
-end
-
-local function refreshAvailableMaps()
-	local newList = {
-		{ type = "Official", name = "Colosseum", mapName = "Map_Colosseum" },
-		{ type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" },
-	}
+	table.insert(options, { type = "Official", name = "Colosseum", mapName = "Map_Colosseum", id = 0 })
 
 	local getStageListBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageList")
+	local communityList = {}
 	if getStageListBindable then
-		local communityList = getStageListBindable:Invoke()
-		if communityList then
-			for _, stage in ipairs(communityList) do
-				table.insert(newList, {
-					type = "Community",
-					creator = stage.creatorName,
-					stageId = stage.id,
-				})
-			end
+		local result = getStageListBindable:Invoke()
+		if result then
+			communityList = result
 		end
 	end
 
-	availableMaps = newList
-	if selectedMapIndex > #availableMaps then
-		selectedMapIndex = 1
+	for i = 1, #communityList do
+		local stage = communityList[i]
+		table.insert(options, {
+			type = "Community",
+			name = "Stage " .. stage.id,
+			creator = stage.creatorName,
+			stageId = stage.id,
+		})
 	end
-	updateBoardDisplay()
+
+	return options
 end
-
-clickDetector.MouseClick:Connect(function()
-	selectedMapIndex = selectedMapIndex + 1
-	if selectedMapIndex > #availableMaps then
-		selectedMapIndex = 1
-	end
-	updateBoardDisplay()
-
-	local sound = Instance.new("Sound")
-	sound.SoundId = "rbxassetid://138470560522298"
-	sound.Volume = 0.5
-	sound.Parent = mapBoard
-	sound:Play()
-	game:GetService("Debris"):AddItem(sound, 1)
-end)
-
-task.spawn(function()
-	task.wait(3)
-	refreshAvailableMaps()
-end)
 
 local function getPlayersInZone(joinZone)
 	local overlapParams = OverlapParams.new()
@@ -233,7 +162,6 @@ local function teleportToLobby()
 			child:Destroy()
 		end
 	end
-	task.spawn(refreshAvailableMaps)
 end
 
 local function teleportToArena(players)
@@ -251,10 +179,12 @@ local function teleportToArena(players)
 
 	if gameMode == "TDM" then
 		for i, player in ipairs(players) do
-			if i % 2 == 1 then
-				player.Team = Teams.RedTeam
-			else
-				player.Team = Teams.BlueTeam
+			if player.Team == nil then
+				if i % 2 == 1 then
+					player.Team = Teams.RedTeam
+				else
+					player.Team = Teams.BlueTeam
+				end
 			end
 		end
 	end
@@ -263,7 +193,7 @@ local function teleportToArena(players)
 		player:SetAttribute("InMatch", true)
 		local spawn = spawns[math.random(1, #spawns)]
 		if player.Character then
-			player.Character:PivotTo(spawn.CFrame + Vector3.new(0, 3, 0))
+			player.Character:PivotTo(spawn.CFrame + Vector3.new(0, 10, 0))
 		end
 	end
 end
@@ -311,7 +241,7 @@ local function resetScores()
 	end
 end
 
-local function startRound(mode, participants)
+local function startRound(mode, participants, targetMap)
 	isMatchActive = true
 	gameMode = mode
 	resetScores()
@@ -322,27 +252,20 @@ local function startRound(mode, participants)
 		broadcast("MODE: TEAM DEATHMATCH", Color3.new(0.4, 0.6, 1))
 	elseif gameMode == "BUILD" then
 		broadcast("MODE: BUILD BATTLE", Color3.new(1, 0.9, 0.2))
+		-- ==========================================
+		-- ★修正: アリーナがロードされる前に「BUILDモード」を宣言してBotをブロック！
+		-- ==========================================
+		roundStatus.Value = "BUILD MODE"
 	end
-	task.wait(3)
 
-	local targetMap = availableMaps[selectedMapIndex]
-
-	if gameMode == "BUILD" then
-		if targetMap.type == "Official" and targetMap.mapName ~= "Map_BuildBase" then
-			targetMap = { type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase" }
-		end
-	elseif gameMode == "FFA" or gameMode == "TDM" then
-		if targetMap.mapName == "Map_BuildBase" or targetMap.type == "Community" then
-			targetMap = { type = "Official", name = "Colosseum", mapName = "Map_Colosseum" }
-		end
-	end
+	task.wait(2)
 
 	if targetMap.type == "Community" then
 		broadcast(
 			"MAP: STAGE " .. targetMap.stageId .. "\nBY " .. string.upper(targetMap.creator),
 			Color3.new(1, 0.8, 0.2)
 		)
-		task.wait(3)
+		task.wait(2)
 		loadMap("Map_BuildBase")
 
 		local getStageByIdBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageById")
@@ -401,7 +324,7 @@ local function startRound(mode, participants)
 		end
 	else
 		broadcast("MAP: " .. string.upper(targetMap.name), Color3.new(0.8, 1, 0.8))
-		task.wait(3)
+		task.wait(2)
 		loadMap(targetMap.mapName)
 	end
 
@@ -453,9 +376,6 @@ local function startRound(mode, participants)
 end
 
 local function onHumanoidDied(humanoid, player)
-	-- ★修正箇所: ここにあった `player:SetAttribute("InMatch", false)` を完全に削除しました！
-	-- 試合中に死んでも、InMatchはtrueのままで維持されるため1人称視点が保たれます！
-
 	if not isMatchActive then
 		return
 	end
@@ -575,7 +495,79 @@ local function gameLoop()
 			end
 
 			if not countdownCancelled and readyCount >= 1 then
-				startRound(bestMode, readyPlayers)
+				-- ==========================================
+				-- ★修正: モードに応じて処理を分岐！
+				-- ==========================================
+				if bestMode == "BUILD" then
+					-- BUILDゾーンの時は投票画面を出さず、即座に開始！
+					local buildMap = { type = "Official", name = "Empty Canvas", mapName = "Map_BuildBase", id = 0 }
+					startRound(bestMode, readyPlayers, buildMap)
+				else
+					-- FFA / TDMゾーンの時はマップ投票フェーズへ！
+					local mapOptions = getMapOptions(bestMode)
+					local votes = {}
+					for i = 1, #mapOptions do
+						votes[i] = 0
+					end
+
+					local voteConnection = mapVoteEvent.OnServerEvent:Connect(function(plr, voteIndex)
+						local isValid = false
+						for _, p in ipairs(readyPlayers) do
+							if p == plr then
+								isValid = true
+								break
+							end
+						end
+						if isValid and mapOptions[voteIndex] then
+							plr:SetAttribute("CurrentVote", voteIndex)
+						end
+					end)
+
+					for _, p in ipairs(readyPlayers) do
+						p:SetAttribute("CurrentVote", 0)
+						mapVoteEvent:FireClient(p, "Start", mapOptions)
+					end
+
+					broadcast("VOTING FOR NEXT MAP...", Color3.new(0.5, 1, 0.5))
+
+					for t = VOTE_TIME, 1, -1 do
+						roundStatus.Value = "VOTING: " .. t .. "s"
+						task.wait(1)
+					end
+
+					voteConnection:Disconnect()
+
+					for _, p in ipairs(readyPlayers) do
+						local v = p:GetAttribute("CurrentVote")
+						if v and v > 0 and v <= #mapOptions then
+							votes[v] = votes[v] + 1
+						end
+					end
+
+					local winningIndex = 1
+					local maxVotes = -1
+					for i = 1, #mapOptions do
+						if votes[i] > maxVotes then
+							maxVotes = votes[i]
+							winningIndex = i
+						end
+					end
+
+					local winningMap = mapOptions[winningIndex]
+
+					for _, p in ipairs(readyPlayers) do
+						mapVoteEvent:FireClient(p, "End", winningIndex)
+					end
+
+					broadcast("MAP CHOSEN!", Color3.new(1, 0.8, 0.2))
+					task.wait(2)
+
+					for _, p in ipairs(readyPlayers) do
+						mapVoteEvent:FireClient(p, "Hide")
+					end
+
+					startRound(bestMode, readyPlayers, winningMap)
+				end
 			end
 		end
 	end
@@ -610,12 +602,12 @@ Players.PlayerAdded:Connect(function(player)
 	end
 
 	player.CharacterAdded:Connect(function(character)
-		-- ★修正箇所: ロビーに戻る時だけInMatchを確実にfalseにする安全な処理
 		task.spawn(function()
 			task.wait(0.2)
-			-- 試合が動いていない（非アクティブ）のにリスポーンした＝「ロビーにいる」と判定して3人称にする
 			if not isMatchActive then
 				player:SetAttribute("InMatch", false)
+			else
+				teleportToArena({ player })
 			end
 		end)
 

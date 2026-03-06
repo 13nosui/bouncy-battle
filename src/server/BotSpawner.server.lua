@@ -1,6 +1,7 @@
 -- src/server/BotSpawner.server.lua
 local Workspace = game:GetService("Workspace")
 local ServerStorage = game:GetService("ServerStorage")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Debris = game:GetService("Debris")
 
 -- ==========================================
@@ -27,9 +28,6 @@ if not dummyTemplate then
 	return
 end
 
--- ==========================================
--- ★ 追加: 乱闘を演出する本格的なBot AI！
--- ==========================================
 local function startBotAI(bot)
 	local humanoid = bot:FindFirstChild("Humanoid")
 	local rootPart = bot:FindFirstChild("HumanoidRootPart")
@@ -37,7 +35,6 @@ local function startBotAI(bot)
 		return
 	end
 
-	-- 見た目を良くするため、武器リストの中からランダムな武器を持たせる！
 	if WeaponsFolder then
 		local weapons = WeaponsFolder:GetChildren()
 		if #weapons > 0 then
@@ -47,19 +44,15 @@ local function startBotAI(bot)
 		end
 	end
 
-	-- AIの思考ループ
 	task.spawn(function()
 		while humanoid.Health > 0 do
-			-- 0.5〜1.5秒間隔で行動を判断する（人間らしいランダムなテンポ）
 			task.wait(math.random(5, 15) / 10)
 
-			-- 1. 一番近い敵（プレイヤーまたは他のBot）を探す
 			local nearestTarget = nil
-			local shortestDistance = 150 -- 索敵範囲
+			local shortestDistance = 150
 
 			for _, char in ipairs(Workspace:GetChildren()) do
 				if char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 and char ~= bot then
-					-- アリーナ内にいるキャラだけを狙う
 					if char.PrimaryPart and char.PrimaryPart.Position.Y > -50 then
 						local targetRoot = char:FindFirstChild("HumanoidRootPart")
 						if targetRoot then
@@ -74,35 +67,28 @@ local function startBotAI(bot)
 			end
 
 			if nearestTarget then
-				-- 2. 敵の近くに向かって少しバラけながら移動する
 				local offset = Vector3.new(math.random(-15, 15), 0, math.random(-15, 15))
 				humanoid:MoveTo(nearestTarget.Position + offset)
 
-				-- 3. たまにジャンプして弾を避けるような「キャラコン」をする
 				if math.random() < 0.3 then
 					humanoid.Jump = true
 				end
 
-				-- 4. 敵の方向を向いて弾を撃つ！
-				-- （少しエイムをずらして百発百中にならないようにする）
 				local aimOffset = Vector3.new(math.random(-3, 3), math.random(-2, 2), math.random(-3, 3))
 				local direction = (nearestTarget.Position + aimOffset - rootPart.Position).Unit
 
-				-- Bot専用の「赤い跳ねる弾」を生成
 				local bullet = Instance.new("Part")
 				bullet.Size = Vector3.new(1.5, 1.5, 1.5)
 				bullet.Shape = Enum.PartType.Ball
-				bullet.Color = Color3.fromRGB(255, 50, 50) -- 危険な赤色！
+				bullet.Color = Color3.fromRGB(255, 50, 50)
 				bullet.Material = Enum.Material.Neon
 				bullet.CFrame = rootPart.CFrame * CFrame.new(0, 1, -3)
 
-				-- Bouncy Battleらしい跳ねる物理設定
 				bullet.CustomPhysicalProperties = PhysicalProperties.new(0.5, 1.0, 1.0, 100, 100)
 				bullet.Parent = Workspace
-				bullet.AssemblyLinearVelocity = direction * 120 -- 弾速
+				bullet.AssemblyLinearVelocity = direction * 120
 				Debris:AddItem(bullet, 3)
 
-				-- 発射音
 				local sound = Instance.new("Sound")
 				sound.SoundId = "rbxassetid://6808892437"
 				sound.Volume = 0.5
@@ -110,7 +96,6 @@ local function startBotAI(bot)
 				sound:Play()
 				Debris:AddItem(sound, 2)
 
-				-- 当たり判定（当たったらダメージ＆キル判定）
 				local connection
 				connection = bullet.Touched:Connect(function(hit)
 					local hitChar = hit.Parent
@@ -119,11 +104,10 @@ local function startBotAI(bot)
 						if hitHum.Health > 0 then
 							hitHum:TakeDamage(20)
 
-							-- キルログやエフェクトのために誰が倒したかを記録
 							if hitHum.Health <= 0 and not hitHum:FindFirstChild("creator") then
 								local tag = Instance.new("ObjectValue")
 								tag.Name = "creator"
-								tag.Value = bot -- Bot自身が倒したと記録する
+								tag.Value = bot
 								tag.Parent = hitHum
 							end
 						end
@@ -132,14 +116,11 @@ local function startBotAI(bot)
 					end
 				end)
 			else
-				-- 敵がいない時は適当にアリーナ内を散歩する
 				humanoid:MoveTo(rootPart.Position + Vector3.new(math.random(-30, 30), 0, math.random(-30, 30)))
 			end
 		end
 	end)
 end
-
--- ==========================================
 
 local function spawnBot()
 	local bot = dummyTemplate:Clone()
@@ -163,25 +144,21 @@ local function spawnBot()
 	end
 
 	bot.Parent = Workspace
-
-	-- ★ スポーンしたBotに思考回路（AI）を接続する！
 	startBotAI(bot)
 end
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local roundStatus = ReplicatedStorage:FindFirstChild("RoundStatus")
 
 task.spawn(function()
 	while true do
 		task.wait(2)
 
-		-- ★追加: 現在BUILDモードかどうかを判定する
+		-- ★修正: GameLoopより先に起動してしまっても大丈夫なように、毎回最新の情報を探し直す！
+		local roundStatus = ReplicatedStorage:FindFirstChild("RoundStatus")
+
 		local isBuildMode = false
 		if roundStatus and string.match(roundStatus.Value, "BUILD") then
 			isBuildMode = true
 		end
 
-		-- 試合中であり、かつBUILDモード「ではない」時だけBotを出す！
 		if Workspace:FindFirstChild("ActiveMap") and not isBuildMode then
 			local currentBotCount = 0
 
@@ -199,7 +176,6 @@ task.spawn(function()
 				end
 			end
 		else
-			-- ロビーにいる時や、BUILDモードの時はBotを全消去して綺麗にする
 			for _, child in ipairs(Workspace:GetChildren()) do
 				if child.Name == "Dummy" and child:FindFirstChild("Humanoid") then
 					child:Destroy()
