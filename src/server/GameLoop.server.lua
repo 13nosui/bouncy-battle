@@ -80,6 +80,7 @@ local function getMapOptions(mode)
 	end
 
 	table.insert(options, { type = "Official", name = "Colosseum", mapName = "Map_Colosseum", id = 0 })
+	table.insert(options, { type = "Official", name = "Survival Area", mapName = "Map_Survival", id = 0 })
 
 	local getStageListBindable = ReplicatedStorage:FindFirstChild("GetCommunityStageList")
 	local communityList = {}

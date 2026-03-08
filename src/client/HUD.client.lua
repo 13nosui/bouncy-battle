@@ -17,28 +17,81 @@ loadoutGui.ResetOnSpawn = false
 loadoutGui.IgnoreGuiInset = true
 loadoutGui.Parent = playerGui
 
--- 画面下部中央のコンテナ
 local container = Instance.new("Frame")
 container.Name = "Container"
 container.Size = UDim2.new(0, 400, 0, 80)
-container.Position = UDim2.new(0.5, -200, 1, -100) -- 下から少し浮かせた位置
 container.BackgroundTransparency = 1
 container.Parent = loadoutGui
 
 local layout = Instance.new("UIListLayout")
 layout.FillDirection = Enum.FillDirection.Horizontal
-layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Padding = UDim.new(0, 12) -- スロット間の隙間
 layout.Parent = container
+
+-- ★ スマホ対応: タッチデバイスなら右上（コインの左隣）、PCなら下部中央に配置
+if UserInputService.TouchEnabled then
+	-- コイン表示（幅150）と被らないよう、右から少し離した位置に配置
+	container.Position = UDim2.new(1, -200, 0, 15)
+	container.AnchorPoint = Vector2.new(1, 0)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Right
+	layout.Padding = UDim.new(0, 8)
+else
+	container.Position = UDim2.new(0.5, -200, 1, -100)
+	container.AnchorPoint = Vector2.new(0, 0)
+	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout.Padding = UDim.new(0, 12)
+end
+
+-- ==========================================
+-- 武器を切り替える共通関数
+-- ==========================================
+local function toggleTool(slotNum)
+	local char = player.Character
+	local humanoid = char and char:FindFirstChild("Humanoid")
+	if not humanoid then
+		return
+	end
+
+	local backpack = player:FindFirstChild("Backpack")
+
+	local function getToolBySlot(sNum)
+		if char then
+			for _, item in ipairs(char:GetChildren()) do
+				if item:IsA("Tool") and item:GetAttribute("Slot") == sNum then
+					return item
+				end
+			end
+		end
+		if backpack then
+			for _, item in ipairs(backpack:GetChildren()) do
+				if item:IsA("Tool") and item:GetAttribute("Slot") == sNum then
+					return item
+				end
+			end
+		end
+		return nil
+	end
+
+	local tool = getToolBySlot(slotNum)
+	if tool then
+		if tool.Parent == char then
+			humanoid:UnequipTools()
+		else
+			humanoid:EquipTool(tool)
+		end
+	end
+end
 
 -- スロットを生成する関数
 local function createSlot(slotName, keybindStr, layoutOrder)
-	local slot = Instance.new("Frame")
+	local slot = Instance.new("TextButton")
 	slot.Name = slotName
-	slot.Size = UDim2.new(0, 80, 0, 80)
-	slot.BackgroundColor3 = Color3.fromRGB(20, 20, 20) -- 暗い背景
-	slot.BackgroundTransparency = 0.4 -- 半透明でモダンに
+	local slotSize = UserInputService.TouchEnabled and 65 or 80
+	slot.Size = UDim2.new(0, slotSize, 0, slotSize)
+	slot.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+	slot.BackgroundTransparency = 0.4
+	slot.Text = ""
+	slot.AutoButtonColor = false
 	slot.LayoutOrder = layoutOrder
 	slot.Parent = container
 
@@ -46,15 +99,13 @@ local function createSlot(slotName, keybindStr, layoutOrder)
 	corner.CornerRadius = UDim.new(0, 8)
 	corner.Parent = slot
 
-	-- 選択枠（ハイライト用）
 	local stroke = Instance.new("UIStroke")
 	stroke.Name = "Highlight"
 	stroke.Color = Color3.fromRGB(255, 255, 255)
-	stroke.Transparency = 0.8 -- 初期状態は薄い
+	stroke.Transparency = 0.8
 	stroke.Thickness = 2
 	stroke.Parent = slot
 
-	-- キーバインド表示（左上）
 	local keyBg = Instance.new("Frame")
 	keyBg.Size = UDim2.new(0, 24, 0, 24)
 	keyBg.Position = UDim2.new(0, -6, 0, -6)
@@ -73,7 +124,6 @@ local function createSlot(slotName, keybindStr, layoutOrder)
 	keyLabel.TextSize = 14
 	keyLabel.Parent = keyBg
 
-	-- 装備の名前表示（中央）
 	local itemLabel = Instance.new("TextLabel")
 	itemLabel.Name = "ItemName"
 	itemLabel.Size = UDim2.new(1, -10, 1, -10)
@@ -82,29 +132,33 @@ local function createSlot(slotName, keybindStr, layoutOrder)
 	itemLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 	itemLabel.Font = Enum.Font.GothamMedium
 	itemLabel.Text = "Empty"
-	itemLabel.TextSize = 12
+	itemLabel.TextSize = UserInputService.TouchEnabled and 10 or 12
 	itemLabel.TextWrapped = true
 	itemLabel.Parent = slot
+
+	-- スマホでタップされた時の処理（武器スロットのみ）
+	if layoutOrder <= 2 then
+		slot.MouseButton1Click:Connect(function()
+			toggleTool(layoutOrder)
+		end)
+	end
 
 	return slot
 end
 
--- 4つのスロットを生成
-local slotWeapon0 = createSlot("Slot_Weapon0", "0", 0) -- ★追加: スロット0を作る
-slotWeapon0.Visible = false -- ★追加: 最初は隠しておく（持っている時だけ表示する）
+local slotWeapon0 = createSlot("Slot_Weapon0", "0", 0)
+slotWeapon0.Visible = false
 
 local slotWeapon1 = createSlot("Slot_Weapon1", "1", 1)
 local slotWeapon2 = createSlot("Slot_Weapon2", "2", 2)
 local slotAbilityQ = createSlot("Slot_AbilityQ", "3", 3)
 local slotAbilityZ = createSlot("Slot_AbilityZ", "4", 4)
 
--- スロットの文字を最新の状態に書き換える関数
 local function updateSlots()
 	local tool0, tool1, tool2
 	local backpack = player:FindFirstChild("Backpack")
 	local char = player.Character
 
-	-- スロット番号の目印を見て、どちらの枠に入る武器か判定する
 	local function checkTools(parent)
 		if not parent then
 			return
@@ -127,23 +181,21 @@ local function updateSlots()
 	checkTools(backpack)
 	checkTools(char)
 
-	-- 1. 武器スロットの名前更新
 	slotWeapon0.ItemName.Text = tool0 and tool0.Name or "Empty"
 	slotWeapon0.Visible = (tool0 ~= nil)
 
 	slotWeapon1.ItemName.Text = tool1 and tool1.Name or "Empty"
 	slotWeapon2.ItemName.Text = tool2 and tool2.Name or "Empty"
 
-	-- ★今手に持っている武器のスロットを水色に光らせる
 	local equippedTool = char and char:FindFirstChildOfClass("Tool")
 
 	local function setHighlight(slot, tool)
 		if tool and equippedTool == tool then
 			slot.Highlight.Transparency = 0
-			slot.Highlight.Color = Color3.fromRGB(0, 255, 255) -- アクティブな色（水色）
+			slot.Highlight.Color = Color3.fromRGB(0, 255, 255)
 		else
 			slot.Highlight.Transparency = 0.8
-			slot.Highlight.Color = Color3.fromRGB(255, 255, 255) -- 待機中の色（白）
+			slot.Highlight.Color = Color3.fromRGB(255, 255, 255)
 		end
 	end
 
@@ -151,16 +203,13 @@ local function updateSlots()
 	setHighlight(slotWeapon1, tool1)
 	setHighlight(slotWeapon2, tool2)
 
-	-- 2. Q枠（スロットA）の更新
 	local sq = player:GetAttribute("SlotQ")
 	slotAbilityQ.ItemName.Text = (sq and sq ~= "") and sq or "Empty"
 
-	-- 3. Z枠（スロットB）の更新
 	local sz = player:GetAttribute("SlotZ")
 	slotAbilityZ.ItemName.Text = (sz and sz ~= "") and sz or "Empty"
 end
 
--- データの変化を監視して自動更新
 player:GetAttributeChangedSignal("SlotQ"):Connect(updateSlots)
 player:GetAttributeChangedSignal("SlotZ"):Connect(updateSlots)
 
@@ -179,53 +228,12 @@ task.spawn(function()
 	updateSlots()
 end)
 
+-- PCのキーボード用切り替え
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then
 		return
 	end
-	local char = player.Character
-	local humanoid = char and char:FindFirstChild("Humanoid")
-	if not humanoid then
-		return
-	end
-
-	local backpack = player:FindFirstChild("Backpack")
-
-	-- スロット番号から武器を探す便利関数
-	local function getToolBySlot(slotNum)
-		if char then
-			for _, item in ipairs(char:GetChildren()) do
-				if item:IsA("Tool") and item:GetAttribute("Slot") == slotNum then
-					return item
-				end
-			end
-		end
-		if backpack then
-			for _, item in ipairs(backpack:GetChildren()) do
-				if item:IsA("Tool") and item:GetAttribute("Slot") == slotNum then
-					return item
-				end
-			end
-		end
-		return nil
-	end
-
-	-- ★修正: 装備と収納を切り替える（トグルする）処理に賢く変更！
-	local function toggleTool(slotNum)
-		local tool = getToolBySlot(slotNum)
-		if tool then
-			if tool.Parent == char then
-				-- すでに手に持っている（キャラクターの中にある）場合はしまう
-				humanoid:UnequipTools()
-			else
-				-- そうでなければ装備する
-				humanoid:EquipTool(tool)
-			end
-		end
-	end
-
-	-- キー判定
-	if input.KeyCode == Enum.KeyCode.Zero then -- ★追加
+	if input.KeyCode == Enum.KeyCode.Zero then
 		toggleTool(0)
 	elseif input.KeyCode == Enum.KeyCode.One then
 		toggleTool(1)
@@ -235,7 +243,7 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
 end)
 
 -- ==========================================
--- ★追加: ロードアウト端末の全画面UIシステム
+-- ロードアウト端末の全画面UIシステム
 -- ==========================================
 local openLoadoutEvent = ReplicatedStorage:WaitForChild("OpenLoadout", 10)
 
@@ -272,51 +280,8 @@ closeBtn.TextColor3 = Color3.new(1, 1, 1)
 closeBtn.Font = Enum.Font.GothamBold
 closeBtn.TextSize = 20
 closeBtn.Parent = loadoutBg
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
 
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 8)
-closeCorner.Parent = closeBtn
-
--- ★追加: HUD側にも表示用の価格表を持たせる
-local ITEM_PRICES = {
-	["BouncyGun"] = 0,
-	["BouncyShotgun"] = 0,
-	["BouncySMG"] = 0,
-	["BouncyGrenade"] = 500,
-	["BouncySniper"] = 800,
-	["BouncyAssaultRifle"] = 600,
-	["Energy Shield"] = 0,
-	["SpeedBoost"] = 0,
-	["HighJump"] = 200,
-	["DoubleJump"] = 300, -- ★追加
-	["TripleJump"] = 500, -- ★追加
-	["QuadJump"] = 800, -- ★追加
-	["Invisibility"] = 300,
-	["Teleport"] = 400,
-	["TimeSlow"] = 500,
-	["Giant"] = 600,
-	["Mini"] = 600,
-	["XRay"] = 700,
-}
-
--- ★追加: 画面表示用の必要なレベルリスト
-local ITEM_UNLOCK_LEVELS = {
-	["BouncyAssaultRifle"] = 2,
-	["DoubleJump"] = 2,
-	["BouncySniper"] = 3,
-	["TripleJump"] = 5,
-	["Giant"] = 7,
-	["Mini"] = 7,
-	["QuadJump"] = 10,
-	["XRay"] = 15,
-}
-
--- （前略... closeCorner の設定部分の直後に追加）
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 8)
-closeCorner.Parent = closeBtn
-
--- ★追加: マネタイズ（課金）ボタンの作成
 local shopFrame = Instance.new("Frame")
 shopFrame.Size = UDim2.new(1, 0, 0, 60)
 shopFrame.Position = UDim2.new(0, 0, 1, -80)
@@ -346,7 +311,6 @@ buyCoinBtn.Parent = shopFrame
 Instance.new("UICorner", buyCoinBtn).CornerRadius = UDim.new(0, 8)
 
 local purchaseEvent = ReplicatedStorage:WaitForChild("PurchaseEvent", 5)
-
 buyVipBtn.MouseButton1Click:Connect(function()
 	if purchaseEvent then
 		purchaseEvent:FireServer("VIP")
@@ -358,9 +322,40 @@ buyCoinBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
+local ITEM_PRICES = {
+	["BouncyGun"] = 0,
+	["BouncyShotgun"] = 0,
+	["BouncySMG"] = 0,
+	["BouncyGrenade"] = 500,
+	["BouncySniper"] = 800,
+	["BouncyAssaultRifle"] = 600,
+	["Energy Shield"] = 0,
+	["SpeedBoost"] = 0,
+	["HighJump"] = 200,
+	["DoubleJump"] = 300,
+	["TripleJump"] = 500,
+	["QuadJump"] = 800,
+	["Invisibility"] = 300,
+	["Teleport"] = 400,
+	["TimeSlow"] = 500,
+	["Giant"] = 600,
+	["Mini"] = 600,
+	["XRay"] = 700,
+}
+
+local ITEM_UNLOCK_LEVELS = {
+	["BouncyAssaultRifle"] = 2,
+	["DoubleJump"] = 2,
+	["BouncySniper"] = 3,
+	["TripleJump"] = 5,
+	["Giant"] = 7,
+	["Mini"] = 7,
+	["QuadJump"] = 10,
+	["XRay"] = 15,
+}
+
 local equipItemEvent = ReplicatedStorage:WaitForChild("EquipItem", 5)
 
--- リストを作る関数（値段と鍵マーク対応版）
 local function createItemList(parent, titleText, posX, items, itemType)
 	local title = Instance.new("TextLabel")
 	title.Text = titleText
@@ -393,9 +388,7 @@ local function createItemList(parent, titleText, posX, items, itemType)
 		btn.Text = ""
 		btn.Parent = scroll
 
-		local corner = Instance.new("UICorner")
-		corner.CornerRadius = UDim.new(0, 6)
-		corner.Parent = btn
+		Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
 		local stroke = Instance.new("UIStroke")
 		stroke.Color = Color3.fromRGB(100, 100, 100)
@@ -421,32 +414,20 @@ local function createItemList(parent, titleText, posX, items, itemType)
 
 		local price = ITEM_PRICES[itemName] or 0
 
-		-- 状態を更新する関数
 		local function updateButtonState()
-			local unlockedStr = ""
-			if itemType == "Weapon" then
-				unlockedStr = player:GetAttribute("UnlockedWeapons") or ""
-			else
-				unlockedStr = player:GetAttribute("UnlockedSkills") or ""
-			end
-
+			local unlockedStr = itemType == "Weapon" and (player:GetAttribute("UnlockedWeapons") or "")
+				or (player:GetAttribute("UnlockedSkills") or "")
 			local isUnlocked = table.find(string.split(unlockedStr, ","), itemName) ~= nil
 
-			-- ★追加: 自分のレベルを取得して比較する
-			local myLevel = 1
 			local stats = player:FindFirstChild("leaderstats")
-			if stats and stats:FindFirstChild("Level") then
-				myLevel = stats.Level.Value
-			end
+			local myLevel = stats and stats:FindFirstChild("Level") and stats.Level.Value or 1
 			local reqLevel = ITEM_UNLOCK_LEVELS[itemName] or 1
 
 			if myLevel < reqLevel then
-				-- レベルが足りない場合（赤色で警告！）
 				statusLabel.Text = "🔒 Lv." .. reqLevel .. " REQUIRED"
 				statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-				nameLabel.TextColor3 = Color3.fromRGB(100, 100, 100) -- 名前も暗くする
+				nameLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
 			else
-				-- レベルが足りている場合
 				if isUnlocked then
 					statusLabel.Text = "UNLOCKED"
 					statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
@@ -461,14 +442,12 @@ local function createItemList(parent, titleText, posX, items, itemType)
 
 		updateButtonState()
 
-		-- アンロック状況が変わったら自動で見た目を更新する
 		if itemType == "Weapon" then
 			player:GetAttributeChangedSignal("UnlockedWeapons"):Connect(updateButtonState)
 		else
 			player:GetAttributeChangedSignal("UnlockedSkills"):Connect(updateButtonState)
 		end
 
-		-- ★追加: レベルが上がった瞬間に、画面の「REQUIRED」の表示も自動で更新させる
 		task.spawn(function()
 			local stats = player:WaitForChild("leaderstats", 10)
 			if stats then
@@ -489,12 +468,8 @@ local function createItemList(parent, titleText, posX, items, itemType)
 		end)
 
 		btn.MouseButton1Click:Connect(function()
-			-- ★追加: レベル不足の時はクリックしても無効にする
-			local myLevel = 1
 			local stats = player:FindFirstChild("leaderstats")
-			if stats and stats:FindFirstChild("Level") then
-				myLevel = stats.Level.Value
-			end
+			local myLevel = stats and stats:FindFirstChild("Level") and stats.Level.Value or 1
 			local reqLevel = ITEM_UNLOCK_LEVELS[itemName] or 1
 
 			if myLevel < reqLevel then
@@ -512,11 +487,9 @@ local function createItemList(parent, titleText, posX, items, itemType)
 	end
 end
 
--- ★末尾に "BouncyAssaultRifle" を追加！
 local weapons = { "BouncyGun", "BouncyShotgun", "BouncySMG", "BouncyGrenade", "BouncySniper", "BouncyAssaultRifle" }
 createItemList(loadoutBg, "WEAPONS (Slot 1 & 2)", 0.08, weapons, "Weapon")
 
--- ★修正: DoubleJump, TripleJump, QuadJump を追加！
 local skills = {
 	"Energy Shield",
 	"HighJump",
@@ -549,7 +522,7 @@ closeBtn.MouseButton1Click:Connect(function()
 end)
 
 -- ==========================================
--- ゲームの進行メッセージ（カウントダウン等）
+-- ゲームの進行メッセージ
 -- ==========================================
 local gameMessageEvent = ReplicatedStorage:WaitForChild("GameMessage", 5)
 
@@ -572,7 +545,6 @@ if gameMessageEvent then
 		if color then
 			messageLabel.TextColor3 = color
 		end
-
 		messageLabel.TextSize = 50
 		local TweenService = game:GetService("TweenService")
 		TweenService:Create(messageLabel, TweenInfo.new(0.3, Enum.EasingStyle.Bounce), { TextSize = 40 }):Play()
@@ -580,21 +552,19 @@ if gameMessageEvent then
 end
 
 -- ==========================================
--- ★追加: 失われたHUD（コイン、ラウンド情報、体力、弾薬）の完全復活
+-- HUDの各要素
 -- ==========================================
 local RunService = game:GetService("RunService")
 
--- 1. コイン表示（右上）
+-- ★修正: 1. コイン表示（画面右上へ）
 local coinFrame = Instance.new("Frame")
 coinFrame.Size = UDim2.new(0, 150, 0, 40)
-coinFrame.Position = UDim2.new(1, -170, 0, 20)
+coinFrame.AnchorPoint = Vector2.new(1, 0) -- 右上を基準にする
+coinFrame.Position = UDim2.new(1, -20, 0, 20) -- 右から20px、上から20pxに配置
 coinFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
 coinFrame.BackgroundTransparency = 0.5
 coinFrame.Parent = loadoutGui
-
-local coinCorner = Instance.new("UICorner")
-coinCorner.CornerRadius = UDim.new(0, 8)
-coinCorner.Parent = coinFrame
+Instance.new("UICorner", coinFrame).CornerRadius = UDim.new(0, 8)
 
 local coinStroke = Instance.new("UIStroke")
 coinStroke.Color = Color3.fromRGB(255, 200, 50)
@@ -626,17 +596,14 @@ task.spawn(function()
 	end
 end)
 
--- ==========================================
--- 2. RIVALS風 対戦スコアボード（画面上部）
--- ==========================================
+-- 2. RIVALS風 対戦スコアボード（画面上部中央）
 local topScoreContainer = Instance.new("Frame")
 topScoreContainer.Size = UDim2.new(1, 0, 0, 80)
 topScoreContainer.Position = UDim2.new(0, 0, 0, 15)
 topScoreContainer.BackgroundTransparency = 1
-topScoreContainer.Visible = false -- 最初は隠しておく
+topScoreContainer.Visible = false
 topScoreContainer.Parent = loadoutGui
 
--- 中央のタイマー
 local timerLabel = Instance.new("TextLabel")
 timerLabel.Size = UDim2.new(0, 100, 0, 36)
 timerLabel.Position = UDim2.new(0.5, 0, 0, 10)
@@ -651,7 +618,6 @@ Instance.new("UICorner", timerLabel).CornerRadius = UDim.new(0, 8)
 local timerStroke = Instance.new("UIStroke", timerLabel)
 timerStroke.Color = Color3.fromRGB(80, 80, 80)
 
--- プレイヤーカード（顔とスコア）を作る関数
 local function createPlayerCard(isLeft)
 	local card = Instance.new("Frame")
 	card.Size = UDim2.new(0, 200, 0, 56)
@@ -662,12 +628,10 @@ local function createPlayerCard(isLeft)
 	card.Parent = topScoreContainer
 	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 28)
 
-	-- 枠線を自分のチームと敵で色分け
 	local stroke = Instance.new("UIStroke", card)
 	stroke.Color = isLeft and Color3.fromRGB(0, 200, 255) or Color3.fromRGB(255, 50, 50)
 	stroke.Thickness = 2
 
-	-- アバター画像（丸く切り抜く）
 	local avatar = Instance.new("ImageLabel")
 	avatar.Size = UDim2.new(0, 48, 0, 48)
 	avatar.AnchorPoint = isLeft and Vector2.new(0, 0.5) or Vector2.new(1, 0.5)
@@ -676,7 +640,6 @@ local function createPlayerCard(isLeft)
 	avatar.Parent = card
 	Instance.new("UICorner", avatar).CornerRadius = UDim.new(1, 0)
 
-	-- レベル（名前なし、上下中央に配置）
 	local infoLabel = Instance.new("TextLabel")
 	infoLabel.Size = UDim2.new(0, 60, 0, 24)
 	infoLabel.AnchorPoint = isLeft and Vector2.new(0, 0.5) or Vector2.new(1, 0.5)
@@ -688,7 +651,6 @@ local function createPlayerCard(isLeft)
 	infoLabel.TextXAlignment = isLeft and Enum.TextXAlignment.Left or Enum.TextXAlignment.Right
 	infoLabel.Parent = card
 
-	-- スコア表示（めちゃくちゃデカく！）
 	local scoreLabel = Instance.new("TextLabel")
 	scoreLabel.Size = UDim2.new(0, 60, 0, 36)
 	scoreLabel.AnchorPoint = isLeft and Vector2.new(1, 0.5) or Vector2.new(0, 0.5)
@@ -697,7 +659,7 @@ local function createPlayerCard(isLeft)
 	scoreLabel.TextColor3 = Color3.new(1, 1, 1)
 	scoreLabel.Font = Enum.Font.GothamBlack
 	scoreLabel.TextSize = 36
-	scoreLabel.Text = "0" -- ★追加: エラーで止まっても「Label」にならないように最初から0を入れておく
+	scoreLabel.Text = "0"
 	scoreLabel.TextStrokeTransparency = 0
 	scoreLabel.TextXAlignment = isLeft and Enum.TextXAlignment.Right or Enum.TextXAlignment.Left
 	scoreLabel.Parent = card
@@ -711,7 +673,6 @@ local rivalCard = createPlayerCard(false)
 local roundStatus = ReplicatedStorage:WaitForChild("RoundStatus", 5)
 local lastRivalId = nil
 
--- 対戦UIを更新するメイン処理
 local function updateMatchScoreUI()
 	if not roundStatus then
 		return
@@ -728,7 +689,6 @@ local function updateMatchScoreUI()
 	local timeStr = status:match("%d+:%d+")
 	timerLabel.Text = timeStr or "VS"
 
-	-- 1. 自分のデータを反映
 	local myStats = player:FindFirstChild("leaderstats")
 	local myKills = myStats and myStats:FindFirstChild("Kills") and myStats.Kills.Value or 0
 	local myLevel = myStats and myStats:FindFirstChild("Level") and myStats.Level.Value or 1
@@ -736,7 +696,6 @@ local function updateMatchScoreUI()
 	myCard.Info.Text = "Lv." .. myLevel
 	myCard.Score.Text = tostring(myKills)
 
-	-- ★修正: エラーでプログラムが止まらない「安全な画像取得」
 	local success, myContent = pcall(function()
 		return Players:GetUserThumbnailAsync(
 			player.UserId,
@@ -744,14 +703,8 @@ local function updateMatchScoreUI()
 			Enum.ThumbnailResolution.Size150x150
 		)
 	end)
+	myCard.Avatar.Image = success and myContent or "rbxasset://textures/ui/GuiImagePlaceholder.png"
 
-	if success and myContent then
-		myCard.Avatar.Image = myContent
-	else
-		myCard.Avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-	end
-
-	-- 2. ライバルを探す
 	local myTeam = player.Team
 	local bestRival = nil
 	local maxKills = -1
@@ -771,7 +724,6 @@ local function updateMatchScoreUI()
 		end
 	end
 
-	-- Bot(Dummy)をライバルとして強制表示
 	local isBot = false
 	if not bestRival then
 		for _, child in ipairs(workspace:GetChildren()) do
@@ -783,7 +735,6 @@ local function updateMatchScoreUI()
 		end
 	end
 
-	-- 3. ライバルのデータを反映
 	if bestRival then
 		if isBot then
 			rivalCard.Info.Text = "Lv.1"
@@ -799,7 +750,6 @@ local function updateMatchScoreUI()
 
 			if lastRivalId ~= bestRival.UserId then
 				lastRivalId = bestRival.UserId
-				-- ★ここも安全対策
 				local rSuccess, rContent = pcall(function()
 					return Players:GetUserThumbnailAsync(
 						bestRival.UserId,
@@ -807,11 +757,7 @@ local function updateMatchScoreUI()
 						Enum.ThumbnailResolution.Size150x150
 					)
 				end)
-				if rSuccess and rContent then
-					rivalCard.Avatar.Image = rContent
-				else
-					rivalCard.Avatar.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-				end
+				rivalCard.Avatar.Image = rSuccess and rContent or "rbxasset://textures/ui/GuiImagePlaceholder.png"
 			end
 		end
 		rivalCard.Card.Visible = true
@@ -820,7 +766,6 @@ local function updateMatchScoreUI()
 	end
 end
 
--- 0.5秒おきにスコアボードを最新にする
 task.spawn(function()
 	while true do
 		pcall(updateMatchScoreUI)
@@ -835,19 +780,13 @@ healthFrame.Position = UDim2.new(0, 40, 1, -60)
 healthFrame.BackgroundColor3 = Color3.fromRGB(50, 20, 20)
 healthFrame.BackgroundTransparency = 0.2
 healthFrame.Parent = loadoutGui
-
-local healthCorner = Instance.new("UICorner")
-healthCorner.CornerRadius = UDim.new(0, 6)
-healthCorner.Parent = healthFrame
+Instance.new("UICorner", healthFrame).CornerRadius = UDim.new(0, 6)
 
 local healthBar = Instance.new("Frame")
 healthBar.Size = UDim2.new(1, 0, 1, 0)
 healthBar.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
 healthBar.Parent = healthFrame
-
-local healthBarCorner = Instance.new("UICorner")
-healthBarCorner.CornerRadius = UDim.new(0, 6)
-healthBarCorner.Parent = healthBar
+Instance.new("UICorner", healthBar).CornerRadius = UDim.new(0, 6)
 
 local healthLabel = Instance.new("TextLabel")
 healthLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -859,10 +798,14 @@ healthLabel.TextSize = 16
 healthLabel.TextStrokeTransparency = 0
 healthLabel.Parent = healthFrame
 
--- 4. 弾薬表示（右下）
+-- 4. 弾薬表示（スマホの場合は右上武器スロットの下、PCは右下）
 local ammoLabel = Instance.new("TextLabel")
 ammoLabel.Size = UDim2.new(0, 150, 0, 50)
-ammoLabel.Position = UDim2.new(1, -190, 1, -80)
+if UserInputService.TouchEnabled then
+	ammoLabel.Position = UDim2.new(1, -190, 0, 100)
+else
+	ammoLabel.Position = UDim2.new(1, -190, 1, -80)
+end
 ammoLabel.BackgroundTransparency = 1
 ammoLabel.Text = ""
 ammoLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
@@ -872,12 +815,10 @@ ammoLabel.TextXAlignment = Enum.TextXAlignment.Right
 ammoLabel.TextStrokeTransparency = 0
 ammoLabel.Parent = loadoutGui
 
--- 毎フレームの更新処理（体力と弾薬）
 RunService.RenderStepped:Connect(function()
 	local char = player.Character
 	local humanoid = char and char:FindFirstChild("Humanoid")
 
-	-- 体力の更新
 	if humanoid then
 		local hp = humanoid.Health
 		local maxHp = humanoid.MaxHealth
@@ -894,9 +835,7 @@ RunService.RenderStepped:Connect(function()
 		healthFrame.Visible = false
 	end
 
-	-- 弾薬の更新
 	local equippedTool = char and char:FindFirstChildOfClass("Tool")
-	-- ★修正: 武器（Bouncy〜）を持っている時だけ、キャラクター(char)の「Ammo」を見るように変更！
 	if equippedTool and equippedTool.Name:match("Bouncy") then
 		local current = char:GetAttribute("Ammo")
 		local maxAmmo = char:GetAttribute("MaxAmmo")
@@ -904,7 +843,7 @@ RunService.RenderStepped:Connect(function()
 		if current and maxAmmo then
 			ammoLabel.Text = current .. " / " .. maxAmmo
 			if current <= maxAmmo * 0.2 then
-				ammoLabel.TextColor3 = Color3.fromRGB(255, 50, 50) -- 残り20%で赤くなる
+				ammoLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
 			else
 				ammoLabel.TextColor3 = Color3.fromRGB(0, 255, 255)
 			end
@@ -916,25 +855,14 @@ RunService.RenderStepped:Connect(function()
 	end
 end)
 
--- ==========================================
--- ★追加: タイトル画面中（プレイ前）はHUD全体を隠す処理
--- ==========================================
 if loadoutGui then
-	-- 最初はプレイヤーの準備状態（IsReady）に合わせて表示をオフにする
 	loadoutGui.Enabled = player:GetAttribute("IsReady") == true
-
-	-- 「PLAY」を押して準備完了（IsReadyがtrue）になった瞬間にHUDを表示する
 	player:GetAttributeChangedSignal("IsReady"):Connect(function()
 		loadoutGui.Enabled = player:GetAttribute("IsReady") == true
 	end)
 end
 
--- ==========================================
--- ★追加: 敵を倒した時の爽快なキルエフェクト！
--- ==========================================
 local killEffectEvent = ReplicatedStorage:WaitForChild("KillEffectEvent", 5)
-
--- 画面中央のキル通知用UIを作成
 local killLabel = Instance.new("TextLabel")
 killLabel.Size = UDim2.new(0, 300, 0, 100)
 killLabel.Position = UDim2.new(0.5, 0, 0.6, 0)
@@ -943,7 +871,7 @@ killLabel.BackgroundTransparency = 1
 killLabel.Text = "💀 KILL!"
 killLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
 killLabel.Font = Enum.Font.GothamBlack
-killLabel.TextSize = 0 -- 最初は小さくしておく
+killLabel.TextSize = 0
 killLabel.TextStrokeTransparency = 0
 killLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
 killLabel.Visible = false
@@ -951,23 +879,20 @@ killLabel.Parent = loadoutGui
 
 if killEffectEvent then
 	killEffectEvent.OnClientEvent:Connect(function()
-		-- 1. キルした瞬間の「チリン！」という爽快な音
 		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://106653932643486" -- コインのチャリン音を流用
+		sound.SoundId = "rbxassetid://106653932643486"
 		sound.Volume = 2.0
-		sound.Pitch = 1.5 -- ピッチを上げて「チリン！」というFPSのヒット音っぽくする
+		sound.Pitch = 1.5
 		sound.Parent = workspace
 		sound:Play()
 		game:GetService("Debris"):AddItem(sound, 2)
 
-		-- 2. UIのアニメーション設定
 		killLabel.Visible = true
 		killLabel.TextSize = 80
 		killLabel.Position = UDim2.new(0.5, 0, 0.6, 0)
 		killLabel.TextTransparency = 0
 		killLabel.TextStrokeTransparency = 0
 
-		-- 少し上にフワッと上がりながら消えるアニメーション
 		local TweenService = game:GetService("TweenService")
 		local tweenInfo = TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		local goal = {
@@ -979,7 +904,6 @@ if killEffectEvent then
 
 		local tween = TweenService:Create(killLabel, tweenInfo, goal)
 		tween:Play()
-
 		tween.Completed:Connect(function()
 			killLabel.Visible = false
 		end)
@@ -987,7 +911,7 @@ if killEffectEvent then
 end
 
 -- ==========================================
--- ★追加: RIVALS風 スタイリッシュなマップ投票UI！
+-- マップ投票UI
 -- ==========================================
 local mapVoteEvent = ReplicatedStorage:WaitForChild("MapVoteEvent", 5)
 
@@ -1005,7 +929,6 @@ if mapVoteEvent then
 	bg.Visible = false
 	bg.Parent = voteGui
 
-	-- 背景をぼかしてUIを目立たせる（かっこいい！）
 	local blur = Instance.new("BlurEffect")
 	blur.Size = 0
 	blur.Parent = game.Lighting
@@ -1020,45 +943,40 @@ if mapVoteEvent then
 	title.TextSize = 50
 	title.Parent = bg
 
-	-- ★修正: 縦スクロールができる ScrollingFrame に変更！
 	local container = Instance.new("ScrollingFrame")
-	container.Size = UDim2.new(0.8, 0, 0.6, 0) -- 画面に広く表示
+	container.Size = UDim2.new(0.8, 0, 0.6, 0)
 	container.Position = UDim2.new(0.1, 0, 0.25, 0)
 	container.BackgroundTransparency = 1
-	container.ScrollBarThickness = 12 -- スクロールバーを見やすく太めに
-	container.ScrollBarImageColor3 = Color3.fromRGB(80, 240, 255) -- バーをサイバーな水色に
-	container.AutomaticCanvasSize = Enum.AutomaticSize.Y -- ★超便利魔法：カードが増えると自動で下にスクロールが伸びる！
+	container.ScrollBarThickness = 12
+	container.ScrollBarImageColor3 = Color3.fromRGB(80, 240, 255)
+	container.AutomaticCanvasSize = Enum.AutomaticSize.Y
 	container.CanvasSize = UDim2.new(0, 0, 0, 0)
 	container.Parent = bg
 
-	-- 上下に少し隙間を空けて見栄えを良くする
 	local padding = Instance.new("UIPadding")
 	padding.PaddingTop = UDim.new(0, 10)
 	padding.PaddingBottom = UDim.new(0, 30)
 	padding.Parent = container
 
-	-- ★修正: 横並び（UIListLayout）から、折り返して下に続く「グリッド表示」に変更！
-	local layout = Instance.new("UIGridLayout")
-	layout.CellSize = UDim2.new(0, 260, 0, 340) -- カード自体のサイズ
-	layout.CellPadding = UDim2.new(0, 30, 0, 30) -- カード同士の隙間
-	layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	layout.SortOrder = Enum.SortOrder.LayoutOrder
-	layout.Parent = container
+	local layout2 = Instance.new("UIGridLayout")
+	layout2.CellSize = UDim2.new(0, 260, 0, 340)
+	layout2.CellPadding = UDim2.new(0, 30, 0, 30)
+	layout2.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	layout2.SortOrder = Enum.SortOrder.LayoutOrder
+	layout2.Parent = container
 
 	local optionBtns = {}
 
 	mapVoteEvent.OnClientEvent:Connect(function(action, data)
 		if action == "Start" then
-			-- 古いボタンを消す
 			for _, btn in ipairs(optionBtns) do
 				btn:Destroy()
 			end
 			table.clear(optionBtns)
 
-			blur.Size = 20 -- ぼかしを強くする
+			blur.Size = 20
 			bg.Visible = true
 
-			-- 選択肢の数だけボタンを作る
 			for i, mapInfo in ipairs(data) do
 				local btn = Instance.new("TextButton")
 				btn.Size = UDim2.new(0, 260, 0, 340)
@@ -1090,9 +1008,7 @@ if mapVoteEvent then
 				creatorLabel.Font = Enum.Font.Gotham
 				creatorLabel.Parent = btn
 
-				-- クリック時の処理
 				btn.MouseButton1Click:Connect(function()
-					-- 全部リセットしてから、選んだ枠だけを緑に光らせる
 					for _, b in ipairs(optionBtns) do
 						b.BorderColor3 = Color3.fromRGB(60, 60, 70)
 					end
@@ -1111,7 +1027,6 @@ if mapVoteEvent then
 				table.insert(optionBtns, btn)
 			end
 		elseif action == "End" then
-			-- 投票終了時：選ばれたマップだけを緑にして、他を暗くする
 			local winningIndex = data
 			for i, btn in ipairs(optionBtns) do
 				if i == winningIndex then
